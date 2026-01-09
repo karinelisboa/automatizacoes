@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Mar 25 12:35:30 2025
-
-@author: karine.lisboa
-"""
-
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -26,61 +19,49 @@ import csv
 import re
 from dotenv import load_dotenv
 import os
+import yaml
+from datetime import datetime
 from pathlib import Path
-from dotenv import load_dotenv
 
-# =====================================================
-# CARREGAR .ENV (ANTES DE QUALQUER COISA)
-# =====================================================
-BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_PATH = BASE_DIR / "config" / ".env"
+load_dotenv()
 
-load_dotenv(dotenv_path=ENV_PATH, override=True)
+def criar_cliente_bq():
+    BQ_KEY_PATH = os.getenv("BQ_KEY_PATH")
+    return bigquery.Client.from_service_account_json(BQ_KEY_PATH)
 
-# =====================================================
-# FUNÇÃO SEGURA PARA ENV
-# =====================================================
-def env(nome):
-    valor = os.getenv(nome)
-    if valor is None:
-        raise RuntimeError(f"❌ Variável de ambiente {nome} NÃO carregada")
-    return valor
+# DEFINICAO DE VARIAVEIS
 
-# =====================================================
-# VARIÁVEIS
-# =====================================================
-DOWNLOADS_PATH = Path(env("DOWNLOADS_PATH"))
-DESTINO_PATH = Path(env("DESTINO_PATH"))
-CHROMEDRIVER_PATH = env("CHROMEDRIVER_PATH")
-DATA_ATUAL = env("DATA_ATUAL")     # formato: DD/MM/YYYY
-DATA_ORDEM = env("DATA_ORDEM")     # formato: DD-MM-YYYY
-DATA_BQ = env("DATA_BQ")           # formato: YYYY-MM-DD
+data_atual = data_base.strftime("%d/%m/%Y")   # Power BI
+data_bq    = data_base.strftime("%Y-%m-%d")   # BigQuery
+data_ordem = data_base.strftime("%d-%m-%Y")   # Nome do arquivo
 
-print("ENV carregado com sucesso")
-print("DOWNLOADS_PATH =", DOWNLOADS_PATH)
+# Validar variável de ambiente DOWNLOADS_PATH antes de usar Path()
+downloads_env = os.getenv("DOWNLOADS_PATH")
+if not downloads_env:
+    raise RuntimeError(
+        "Environment variable DOWNLOADS_PATH is not set.\n"
+        "Set DOWNLOADS_PATH (e.g. in a .env file) or export it in your shell before running the script."
+    )
 
-
-
-# Caminho dos arquivos brutos baixados
-pasta = os.getenv("DOWNLOADS_PATH")
-caminho_pasta = Path(pasta)
+DOWNLOADS_PATH = Path(downloads_env)
 
 # URL do Power BI
-url = os.getenv("POWERBI_URL")
+POWERBI_URL = os.getenv("POWERBI_URL")
 
 # Caminho dos arquivos baixados renomeados
-diretorio_destino = os.getenv("DESTINO_PATH")
-pasta_final = Path(diretorio_destino)
+DESTINO_PATH   = Path(os.getenv("DESTINO_PATH"))
+diretorio_destino = DESTINO_PATH
 
 # Informando o caminho do programa do Chrome (chromedriver)
-driver_path = os.getenv("CHROMEDRIVER_PATH")
-service = Service(driver_path)
+CHROMEDRIVER   = Path(os.getenv("CHROMEDRIVER_PATH"))
+service = Service(CHROMEDRIVER)
+
 
 # Caminho para sua chave de serviço JSON
-key_path = "C:/Users/karine.lisboa/Documents/ro-areatecnica-020ae48509bb.json"
+BQ_KEY_PATH = os.getenv("BQ_KEY_PATH")
 
 # Configura o cliente do BigQuery
-client = bigquery.Client.from_service_account_json(key_path)
+client = criar_cliente_bq()
 
 
 
@@ -111,7 +92,7 @@ driver = webdriver.Chrome(service=service, options=chrome_options)
 
 # ACESSO AO DASHBOARD
 # Acessa o link
-driver.get(url)
+driver.get(POWERBI_URL)
 
 # Login no Power BI
 # Preenche email
@@ -119,14 +100,33 @@ email_input = WebDriverWait(driver, 60).until(
     EC.presence_of_element_located((By.ID, "Email"))
 )
 
-email_input.send_keys(os.getenv("POWERBI_EMAIL"))
+POWERBI_EMAIL = os.getenv("POWERBI_EMAIL")
 #email_input.send_keys(Keys.RETURN)
 time.sleep(5)
 
 # Preenche senha
 senha_input = driver.find_element(By.ID, 'Password')
-senha_input.send_keys(os.getenv("POWERBI_PASSWORD"))
+POWERBI_PASSWORD = os.getenv("POWERBI_PASSWORD")  # Senha
+
+email_input.send_keys(POWERBI_EMAIL)
+senha_input.send_keys(POWERBI_PASSWORD)
 senha_input.send_keys(Keys.RETURN)
+
+time.sleep(1)
+
+# Clica no botão "Entrar"
+botao_entrar = WebDriverWait(driver, 60).until(
+    EC.element_to_be_clickable((By.ID, "login-submit"))
+)
+
+# Tentativa direta
+try:
+    botao_entrar.click()
+except:
+    # Fallback via JS se o site bloquear o click do Selenium
+    driver.execute_script("arguments[0].click();", botao_entrar)
+
+
 
 #driver.switch_to.default_content()
 
@@ -137,18 +137,34 @@ iframe = WebDriverWait(driver, 60).until(
 
 # Mudar para o iframe usando o src
 driver.switch_to.frame(iframe)
-time.sleep(20)
-
+time.sleep(10)
 
 
 # FILTRO DE PERIODO
-# Localiza e clica no elemento de filtro
-filtro = WebDriverWait(driver, 60).until(
-    #EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para seguir link']"))
-    EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para Seguir']"))
+wait = WebDriverWait(driver, 60)
+
+# Aguarda o visual do Indicador existir
+indicador = wait.until(
+    EC.element_to_be_clickable(
+        (By.XPATH, "//*[contains(@aria-label, 'Indicador') and contains(@aria-label, 'Clique aqui')]")
+    )
 )
-filtro.click()
-time.sleep(5)
+
+# Garante que está visível
+driver.execute_script(
+    "arguments[0].scrollIntoView({block: 'center'});",
+    indicador
+)
+time.sleep(1)
+
+# Clique robusto
+try:
+    indicador.click()
+except:
+    driver.execute_script("arguments[0].click();", indicador)
+
+time.sleep(4)
+
 
 # Limpa todas as seleções do filtro
 filtro = WebDriverWait(driver, 60).until(
@@ -168,11 +184,11 @@ campo_data_fim = WebDriverWait(driver, 60).until(
 
 # Limpa os campos e insere a data do dia de hoje
 campo_data_fim.clear()
-campo_data_fim.send_keys(DATA_ATUAL)
+campo_data_fim.send_keys(data_atual)
 time.sleep(10)
 
 campo_data_inicio.clear()
-campo_data_inicio.send_keys(DATA_ATUAL)
+campo_data_inicio.send_keys(data_atual)
 
 
 # Fecha o filtro clicando no ícone
@@ -224,10 +240,10 @@ time.sleep(10)
 
 # Lista todos os arquivos .xlsx da pasta de downloads
 arquivos = [
-    os.path.join(pasta, arquivo)
-    for arquivo in os.listdir(pasta)
-    if arquivo.endswith('.xlsx')
-    ]
+    arquivo
+    for arquivo in DOWNLOADS_PATH.iterdir()
+    if arquivo.is_file() and arquivo.suffix.lower() == ".xlsx"
+]
 
 
 # Encontra o arquivo .xlsx mais recente (baseado na data de criação)
@@ -235,7 +251,7 @@ if arquivos:
     arquivo_mais_recente = max(arquivos, key=os.path.getctime)
     
     # Remove barras '/' do texto da linha (nome do arquivo)
-    nome_arquivo_novo = f"{DATA_ORDEM} - Resumo.xlsx"
+    nome_arquivo_novo = f"{data_ordem} - Resumo.xlsx"
     
     # Define o caminho do novo arquivo na pasta de destino
     caminho_novo = os.path.join(diretorio_destino, nome_arquivo_novo)
@@ -247,7 +263,7 @@ time.sleep(10)
 
 
 #SUBINDO NA TABELA DO BIGQUERY
-#DATA_ORDEM = '19-02-2025'
+#data_ordem = '19-02-2025'
 termo = 'Resumo'
 
         
@@ -256,7 +272,7 @@ lista_dataframes = []
 
 # Itera pelos arquivos na pasta
 for arquivo in os.listdir(diretorio_destino):
-    if arquivo.endswith('.xlsx') and termo in arquivo and str(DATA_ORDEM) in arquivo: 
+    if arquivo.endswith('.xlsx') and termo in arquivo and str(data_ordem) in arquivo: 
         caminho_completo = os.path.join(diretorio_destino, arquivo)
         df = pd.read_excel(caminho_completo)
         
@@ -284,22 +300,30 @@ for coluna in colunas_inteiras:
     resumo[coluna] = resumo[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
 
 # Salvar no CSV sem converter inteiros para float
-resumo.to_csv(f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv", 
-              index=False, sep=";", encoding="utf-8-sig", decimal=".")
+arquivo_resumo = DESTINO_PATH / f"{data_ordem} Resumo.csv"
+
+resumo.to_csv(
+    arquivo_resumo,
+    index=False,
+    sep=";",
+    encoding="utf-8-sig",
+    decimal="."
+)
+
 
 
 # Configurações principais
-project_id = "ro-areatecnica"
-dataset_id = "ressarcimento_jae"
-table_id = "resumo"
-source_file = f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv"
+project_id = os.getenv("BQ_PROJECT")
+dataset_id = os.getenv("BQ_DATASET")
+table_id = os.getenv("BQ_TABLE_RESUMO")
+source_file = arquivo_resumo
 
 # Define a tabela de destino no formato completo
 table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
 # Configurações do job de carregamento
 schema = [
-    bigquery.SchemaField("DATA_ORDEM", "DATE"),
+    bigquery.SchemaField("data_ordem", "DATE"),
     bigquery.SchemaField("status_ordem", "STRING"),
     bigquery.SchemaField("consorcio", "STRING"),
     bigquery.SchemaField("operadora", "STRING"),
@@ -337,8 +361,6 @@ with open(source_file, "rb") as file:
 
 # Aguarda o job ser concluído
 job.result()
-
-print("✅ Upload do Resumo para o BigQuery concluído com sucesso.")
 
 
 
@@ -462,7 +484,7 @@ def baixar_arquivos(tipo):
 
                     
                     # Captura estado atual da pasta antes do download
-                    existentes = {f for f in Path(pasta).iterdir() if f.is_file()}
+                    existentes = {f for f in DOWNLOADS_PATH.iterdir() if f.is_file()}
                     print(f"✓ Arquivos atuais na pasta: {len(existentes)}")
                     
                     # Clica em "Mais opções"
@@ -519,7 +541,7 @@ def baixar_arquivos(tipo):
                                 precisa_duplo_download = False
                                 
                                 # Salva como arquivo único (sem sufixo _ordenado)
-                                os.makedirs(diretorio_destino, exist_ok=True)
+                                DESTINO_PATH.mkdir(parents=True, exist_ok=True)
                                 texto_linha_limpo = texto_linha.replace('/', '')
                                 nome_unico = f"{data_linha} {texto_linha_limpo} - {texto_consorcio} - {tipo}.xlsx"
                                 caminho_unico = os.path.join(diretorio_destino, nome_unico)
@@ -578,7 +600,7 @@ def baixar_arquivos(tipo):
           
 
                 # Captura estado atual da pasta antes do download
-                existentes = {f for f in Path(pasta).iterdir() if f.is_file()}
+                existentes = {f for f in DOWNLOADS_PATH.iterdir() if f.is_file()}
                 print(f"✓ Arquivos atuais na pasta: {len(existentes)}")
                 
                 # Clica em "Mais opções" e "Exportar"
@@ -625,7 +647,7 @@ def baixar_arquivos(tipo):
                 else:
                     print(f"❌ ERRO: Download não concluído para linha {i}")
                     print("📁 Arquivos atuais na pasta de downloads:")
-                    for f in Path(pasta).iterdir():
+                    for f in DOWNLOADS_PATH(pasta).iterdir():
                         if f.is_file():
                             print(f"  - {f.name}")
                     break
@@ -662,9 +684,10 @@ def baixar_arquivos(tipo):
         print("📊 VALIDAÇÃO FINAL")
         print("=" * 60)
         
-        arquivos_baixados = len(list(pasta_final.glob(f"{DATA_ORDEM}*{consorcio_selecionado} - {tipo}.xlsx")))
-        arquivos_ordenados = len(list(pasta_final.glob(f"{DATA_ORDEM}*{consorcio_selecionado} - {tipo}_ordenado.xlsx")))
-        arquivos_consolidados = len(list(pasta_final.glob(f"{DATA_ORDEM}*{consorcio_selecionado} - {tipo}_consolidado.xlsx")))
+        arquivos_baixados = len(list(DESTINO_PATH.glob(f"{data_ordem}*{consorcio_selecionado} - {tipo}.xlsx")))
+        arquivos_ordenados = len(list(DESTINO_PATH.glob(f"{data_ordem}*{consorcio_selecionado} - {tipo}_ordenado.xlsx")))
+        arquivos_consolidados = len(list(DESTINO_PATH.glob(f"{data_ordem}*{consorcio_selecionado} - {tipo}_consolidado.xlsx")))
+
         
         total_arquivos = arquivos_baixados + arquivos_ordenados + arquivos_consolidados
         linhas_esperadas = len(linhas_para_processar)
@@ -696,7 +719,7 @@ def aguardar_download(existentes):
     arquivo_mais_recente = None
 
     while time.time() < fim:
-        atuais = {f for f in Path(pasta).iterdir() if f.is_file()}
+        atuais = {f for f in DOWNLOADS_PATH(pasta).iterdir() if f.is_file()}
         novos = atuais - existentes
         if not novos:
             time.sleep(poll_interval)
@@ -828,7 +851,7 @@ for arquivo in os.listdir(diretorio_destino):
         print(f"⏭️ Ignorando arquivo resumo: {arquivo}")
         continue
         
-    if arquivo.endswith('.xlsx') and termo in arquivo and str(DATA_ORDEM) in arquivo:
+    if arquivo.endswith('.xlsx') and termo in arquivo and str(data_ordem) in arquivo:
         caminho_completo = os.path.join(diretorio_destino, arquivo)
         
         # Verifica se é arquivo ordenado ou consolidado
@@ -882,7 +905,7 @@ for arquivo in os.listdir(diretorio_destino):
                 }
             )
         
-            df['Data'] = DATA_ORDEM
+            df['Data'] = data_ordem
             valor_ultima_linha = df.iloc[-1, 0]
             df['Id'] = re.search(r'Filtros aplicados:\nid é (\d+)', valor_ultima_linha).group(1)
             df = df.iloc[:-3]
@@ -909,14 +932,13 @@ for chave_base, arquivos in arquivos_para_consolidar.items():
         print(f"Total de linhas após remover duplicatas: {len(df_completo)}")
         
         # Metadados
-        df_completo['Data'] = DATA_ORDEM
+        df_completo['Data'] = data_ordem
         df_completo['Id'] = arquivos['id']
 
         # 🔹 SALVA ARQUIVO FINAL DO ESPECIAL
         nome_base = chave_base.replace('.xlsx', '')
         arquivo_especial = (
-            f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/"
-            f"{DATA_ORDEM}_{nome_base}_Transacao_ESPECIAL.csv"
+            DESTINO_PATH / f"{data_ordem}_{nome_base}_Transacao_ESPECIAL.csv"
         )
 
         df_completo.to_csv(
@@ -958,10 +980,10 @@ transacao = transacao[['Data Transação','Data Processamento','Ordem Ressarcime
 transacao = transacao[['Data','Consórcio','Id','Data Transação','Data Processamento','Ordem Ressarcimento','Operadora','Nr Linha','Modal','Linha','Prefixo Veículo','Validador','Tipo Transação','Tipo Usuário','Produto','Tipo Produto','Mídia','Transação','Qtd Transação','Valor Tarifa','Valor Transação']]
 
 # Renomea colunas
-transacao.columns = ['DATA_ORDEM','consorcio','id','data_transacao','data_processamento','ordem_ressarcimento','operadora','servico','modal','linha','prefixo_veiculo','validador','tipo_transacao','tipo_usuario','produto','tipo_produto','midia','id_transacao','qtd_transacao','valor_tarifa','valor_transacao']
+transacao.columns = ['data_ordem','consorcio','id','data_transacao','data_processamento','ordem_ressarcimento','operadora','servico','modal','linha','prefixo_veiculo','validador','tipo_transacao','tipo_usuario','produto','tipo_produto','midia','id_transacao','qtd_transacao','valor_tarifa','valor_transacao']
 
 # Padronização
-transacao['DATA_ORDEM'] = pd.to_datetime(transacao['DATA_ORDEM'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
+transacao['data_ordem'] = pd.to_datetime(transacao['data_ordem'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
 transacao['data_transacao'] = pd.to_datetime(transacao['data_transacao'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
 
 # Garantindo que os valores monetários tenham casas decimais
@@ -983,7 +1005,7 @@ for coluna in ['ordem_ressarcimento', 'prefixo_veiculo']:
     )
 
 # CRIA O ARQUIVO CONSOLIDADO NA PASTA BASES_RESSARCIMENTO
-arquivo_consolidado = f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM}_Transacao_Consolidado.csv"
+arquivo_consolidado = DESTINO_PATH / f"{data_ordem}_Transacao_Consolidado.csv"
 transacao.to_csv(arquivo_consolidado, index=False, sep=";", encoding="utf-8-sig", decimal=".")
 
 print(f"\n✅ Arquivo consolidado criado: {arquivo_consolidado}")
@@ -1000,7 +1022,7 @@ table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
 # Configurações do job de carregamento
 schema = [
-    bigquery.SchemaField("DATA_ORDEM", "DATE"),
+    bigquery.SchemaField("data_ordem", "DATE"),
     bigquery.SchemaField("consorcio", "STRING"),
     bigquery.SchemaField("id", "STRING"),
     bigquery.SchemaField("data_transacao", "DATETIME"),
@@ -1061,10 +1083,10 @@ for arquivo in os.listdir(diretorio_destino):
     if arquivo.startswith('~$'):
         continue
         
-    if arquivo.endswith('.xlsx') and termo in arquivo and str(DATA_ORDEM) in arquivo: 
+    if arquivo.endswith('.xlsx') and termo in arquivo and str(data_ordem) in arquivo: 
         caminho_completo = os.path.join(diretorio_destino, arquivo)
         df = pd.read_excel(caminho_completo)
-        df['Data'] = DATA_ORDEM
+        df['Data'] = data_ordem
         
         if 'Internorte' in arquivo:
             df['Consorcio'] = 'Internorte'
@@ -1097,10 +1119,10 @@ rateio = pd.concat(lista_dataframes, ignore_index=True)
 rateio = rateio[['Data','Consorcio', 'Operadora','Id','Data P1','Modal P1','Linha P1','Rateio P1','% P1','Transação P1','Data P2','Modal P2','Linha P2','Rateio P2','% P2','Transação P2','Data P3','Modal P3','Linha P3','Rateio P3','% P3','Transação P3','Data P4','Modal P4','Linha P4','Rateio P4','% P4','Transação P4','Data P5','Modal P5','Linha P5','Rateio P5','% P5','Transação P5']]
 
 # Renomea colunas
-rateio.columns =['DATA_ORDEM','consorcio', 'operadora','id','data_p1','modal_p1','linha_p1','rateio_p1','percentual_p1','id_transacao_p1','data_p2','modal_p2','linha_p2','rateio_p2','percentual_p2','id_transacao_p2','data_p3','modal_p3','linha_p3','rateio_p3','percentual_p3','id_transacao_p3','data_p4','modal_p4','linha_p4','rateio_p4','percentual_p4','id_transacao_p4','data_p5','modal_p5','linha_p5','rateio_p5','percentual_p5','id_transacao_p5']
+rateio.columns =['data_ordem','consorcio', 'operadora','id','data_p1','modal_p1','linha_p1','rateio_p1','percentual_p1','id_transacao_p1','data_p2','modal_p2','linha_p2','rateio_p2','percentual_p2','id_transacao_p2','data_p3','modal_p3','linha_p3','rateio_p3','percentual_p3','id_transacao_p3','data_p4','modal_p4','linha_p4','rateio_p4','percentual_p4','id_transacao_p4','data_p5','modal_p5','linha_p5','rateio_p5','percentual_p5','id_transacao_p5']
 
 # Padronização
-rateio['DATA_ORDEM'] = pd.to_datetime(rateio['DATA_ORDEM'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
+rateio['data_ordem'] = pd.to_datetime(rateio['data_ordem'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
 rateio['percentual_p1'] = rateio['percentual_p1'].astype(float)
 rateio['rateio_p1'] = rateio['rateio_p1'].astype(float)
 rateio['percentual_p2'] = rateio['percentual_p2'].astype(float)
@@ -1120,15 +1142,22 @@ for coluna in colunas_float:
     rateio[coluna] = rateio[coluna].astype(float)
 
 # Salvar no CSV sem converter inteiros para float
-rateio.to_csv(f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Rateio.csv", 
-                 index=False, sep=";", encoding="utf-8-sig", decimal=".")
+arquivo_rateio = DESTINO_PATH / f"{data_ordem} Rateio.csv"
 
+rateio.to_csv(
+    arquivo_rateio,
+    index=False,
+    sep=";",
+    encoding="utf-8-sig",
+    decimal="."
+)
+
+source_file = arquivo_rateio
 
 # Configurações do BigQuery
 project_id = "ro-areatecnica"
 dataset_id = "ressarcimento_jae"
 table_id = "rateio"
-source_file = f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Rateio.csv"
 
 
 # Define a tabela de destino no formato completo
@@ -1136,7 +1165,7 @@ table_ref = f"{project_id}.{dataset_id}.{table_id}"
 
 # Configurações do job de carregamento
 schema = [
-    bigquery.SchemaField("DATA_ORDEM", "DATE"),
+    bigquery.SchemaField("data_ordem", "DATE"),
     bigquery.SchemaField("consorcio", "STRING"),
     bigquery.SchemaField("operadora", "STRING"),
     bigquery.SchemaField("id", "STRING"),
@@ -1198,26 +1227,26 @@ else:
 # Insere o rateio baixado na taela de distintos
 rateio_distinto = """
 INSERT INTO `ro-areatecnica.ressarcimento_jae.rateio_distinto` (
-   DATA_ORDEM, data_p1, modal_p1, linha_p1, rateio_p1, percentual_p1, id_transacao_p1,
+   data_ordem, data_p1, modal_p1, linha_p1, rateio_p1, percentual_p1, id_transacao_p1,
    data_p2, modal_p2, linha_p2, rateio_p2, percentual_p2, id_transacao_p2,
    data_p3, modal_p3, linha_p3, rateio_p3, percentual_p3, id_transacao_p3,
    data_p4, modal_p4, linha_p4, rateio_p4, percentual_p4, id_transacao_p4,
    data_p5, modal_p5, linha_p5, rateio_p5, percentual_p5, id_transacao_p5
 )
 SELECT DISTINCT
-   DATA_ORDEM, data_p1, modal_p1, linha_p1, rateio_p1, percentual_p1, id_transacao_p1,
+   data_ordem, data_p1, modal_p1, linha_p1, rateio_p1, percentual_p1, id_transacao_p1,
    data_p2, modal_p2, linha_p2, rateio_p2, percentual_p2, id_transacao_p2,
    data_p3, modal_p3, linha_p3, rateio_p3, percentual_p3, id_transacao_p3,
    data_p4, modal_p4, linha_p4, rateio_p4, percentual_p4, id_transacao_p4,
    data_p5, modal_p5, linha_p5, rateio_p5, percentual_p5, id_transacao_p5
 FROM `ro-areatecnica.ressarcimento_jae.rateio`
-WHERE DATA_ORDEM = @DATA_BQ
+WHERE data_ordem = @data_bq
 """
 
 # Configuração do parâmetro
 job_config = bigquery.QueryJobConfig(
     query_parameters=[
-        bigquery.ScalarQueryParameter("DATA_BQ", "DATE", DATA_BQ)
+        bigquery.ScalarQueryParameter("data_bq", "DATE", data_bq)
     ]
 )
 

@@ -2,6 +2,7 @@
 .env
 **/.env
 *.json
+gratuidade_jae_auto/
 
 # python
 __pycache__/
