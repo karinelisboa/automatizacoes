@@ -43,7 +43,7 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 def env(nome):
     valor = os.getenv(nome)
     if valor is None:
-        raise RuntimeError(f"❌ Variável de ambiente {nome} NÃO carregada")
+        raise RuntimeError(f" Variável de ambiente {nome} NÃO carregada")
     return valor
 
 # =====================================================
@@ -55,6 +55,8 @@ CHROMEDRIVER_PATH = env("CHROMEDRIVER_PATH")
 DATA_ATUAL = env("DATA_ATUAL")     # formato: DD/MM/YYYY
 DATA_ORDEM = env("DATA_ORDEM")     # formato: DD-MM-YYYY
 DATA_BQ = env("DATA_BQ")           # formato: YYYY-MM-DD
+BQ_KEY_PATH = env("BQ_KEY")
+USUARIO = env("USUARIO")
 
 print("ENV carregado com sucesso")
 print("DOWNLOADS_PATH =", DOWNLOADS_PATH)
@@ -77,7 +79,7 @@ driver_path = os.getenv("CHROMEDRIVER_PATH")
 service = Service(driver_path)
 
 # Caminho para sua chave de serviço JSON
-key_path = "C:/Users/karine.lisboa/Documents/ro-areatecnica-020ae48509bb.json"
+key_path = BQ_KEY_PATH
 
 # Configura o cliente do BigQuery
 client = bigquery.Client.from_service_account_json(key_path)
@@ -284,7 +286,7 @@ for coluna in colunas_inteiras:
     resumo[coluna] = resumo[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
 
 # Salvar no CSV sem converter inteiros para float
-resumo.to_csv(f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv", 
+resumo.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv", 
               index=False, sep=";", encoding="utf-8-sig", decimal=".")
 
 
@@ -292,7 +294,7 @@ resumo.to_csv(f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} 
 project_id = "ro-areatecnica"
 dataset_id = "ressarcimento_jae"
 table_id = "resumo"
-source_file = f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv"
+source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv"
 
 # Define a tabela de destino no formato completo
 table_ref = f"{project_id}.{dataset_id}.{table_id}"
@@ -338,7 +340,7 @@ with open(source_file, "rb") as file:
 # Aguarda o job ser concluído
 job.result()
 
-print("✅ Upload do Resumo para o BigQuery concluído com sucesso.")
+print("Upload do Resumo para o BigQuery concluído com sucesso.")
 
 
 
@@ -359,19 +361,19 @@ def baixar_arquivos(tipo):
         ))
         
         # DEBUG
-        print(f"\n🔍 DEBUG: {consorcio_selecionado} - {tipo}")
+        print(f"\n DEBUG: {consorcio_selecionado} - {tipo}")
         print(f"Total de linhas: {linhas_tabela}")
         
         # ALTERAÇÃO: Sempre processa TODAS as linhas, independente do consórcio
         linhas_para_processar = list(range(1, linhas_tabela + 1))
-        print(f"\n📋 {consorcio_selecionado} - {tipo}: Processando TODAS as {linhas_tabela} linhas")
+        print(f"\n {consorcio_selecionado} - {tipo}: Processando TODAS as {linhas_tabela} linhas")
         print(f"DEBUG: Linhas que serão processadas: {linhas_para_processar}\n")
         
         # Itera sobre as linhas selecionadas
         for i in linhas_para_processar:
             try:
                 print(f"\n{'=' * 60}")
-                print(f"📍 Iniciando processamento da linha {i}")
+                print(f"Iniciando processamento da linha {i}")
                 print(f"{'=' * 60}")
                 
                 # Localiza os elementos necessários na linha
@@ -379,35 +381,35 @@ def baixar_arquivos(tipo):
                     EC.presence_of_element_located((By.XPATH, f"(//div[@role='gridcell' and @column-index='3' and @aria-colindex='5'])[{i}]"))
                 )
                 texto_linha = linha.text
-                print(f"✓ Texto da linha capturado: {texto_linha}")
+                print(f"Texto da linha capturado: {texto_linha}")
                 time.sleep(7)
                 
                 consorcio = WebDriverWait(driver, 60).until(
                     EC.presence_of_element_located((By.XPATH, f"(//div[@role='gridcell' and @column-index='2' and @aria-colindex='4'])[{i}]"))
                 )
                 texto_consorcio = consorcio.text
-                print(f"✓ Consórcio capturado: {texto_consorcio}")
+                print(f"Consórcio capturado: {texto_consorcio}")
                 time.sleep(7)
                 
                 data_linha = WebDriverWait(driver, 60).until(
                     EC.presence_of_element_located((By.XPATH, f"(//div[@role='gridcell' and @column-index='0' and @aria-colindex='2'])[{i}]"))
                 )
                 data_linha = data_linha.text.replace('/', '-')
-                print(f"✓ Data capturada: {data_linha}")
+                print(f"Data capturada: {data_linha}")
                 time.sleep(7)
                 
                 # Clica na linha
-                print("⏳ Clicando na linha...")
+                print("Clicando na linha...")
                 driver.execute_script("arguments[0].scrollIntoView(true);", linha)
                 time.sleep(2)
                 
                 try:
                     linha.click()
                 except Exception as click_error:
-                    print(f"⚠️  Erro ao clicar normalmente, tentando com JavaScript...")
+                    print(f"Erro ao clicar normalmente, tentando com JavaScript...")
                     driver.execute_script("arguments[0].click();", linha)
                 
-                print("✓ Linha clicada com sucesso")
+                print(" Linha clicada com sucesso")
                 time.sleep(7)
                 
                 # ALTERAÇÃO: Verifica download duplo SOMENTE para JABOUR (Santa Cruz) e REDENTOR (Transcarioca)
@@ -416,14 +418,14 @@ def baixar_arquivos(tipo):
                     if (texto_consorcio.upper() == "SANTA CRUZ" and "JABOUR" in texto_linha.upper()) or \
                        (texto_consorcio.upper() == "TRANSCARIOCA" and "REDENTOR" in texto_linha.upper()):
                         precisa_duplo_download = True
-                        print("✓ Empresa identificada - download duplo necessário")
+                        print(" Empresa identificada - download duplo necessário")
                         if "JABOUR" in texto_linha.upper():
                             print("   -> Empresa: JABOUR (Santa Cruz)")
                         if "REDENTOR" in texto_linha.upper():
                             print("   -> Empresa: REDENTOR (Transcarioca)")
                 
                 # Clica no botão de drill-through
-                print(f"⏳ Procurando botão drill-through para {tipo}...")
+                print(f"Procurando botão drill-through para {tipo}...")
                 botao_drill = WebDriverWait(driver, 60).until(
                     EC.element_to_be_clickable((By.XPATH, f"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em {tipo}']"))
                 )
@@ -431,14 +433,14 @@ def baixar_arquivos(tipo):
                 try:
                     botao_drill.click()
                 except Exception:
-                    print("⚠️  Clique normal falhou, usando JavaScript...")
+                    print("Clique normal falhou, usando JavaScript...")
                     driver.execute_script("arguments[0].click();", botao_drill)
                 
-                print("✓ Botão drill-through clicado")
+                print("Botão drill-through clicado")
                 time.sleep(10)
                 
                 # Move o mouse para revelar "Mais opções"
-                print("⏳ Movendo mouse para revelar 'Mais opções'...")
+                print("Movendo mouse para revelar 'Mais opções'...")
                 elemento_para_revelar = WebDriverWait(driver, 60).until(
                     EC.presence_of_element_located((By.XPATH, f"(//div[@title='{tipo}'])"))
                 )
@@ -449,12 +451,12 @@ def baixar_arquivos(tipo):
                 # ==== PRIMEIRO DOWNLOAD (ORDENADO) ====
                 if precisa_duplo_download:
                     print("\n" + "=" * 60)
-                    print("📥 INICIANDO PRIMEIRO DOWNLOAD (ORDENADO)")
+                    print("INICIANDO PRIMEIRO DOWNLOAD (ORDENADO)")
                     print("=" * 60)
                     
-                    # 🔽 Ordenação SOMENTE para Transação
+                    #  Ordenação SOMENTE para Transação
                     if tipo == "Transação":
-                        print("⏳ Aplicando ordenação (somente Transação)...")
+                        print("Aplicando ordenação (somente Transação)...")
                         WebDriverWait(driver, 60).until(
                             EC.element_to_be_clickable((By.XPATH, "//*[@class='powervisuals-glyph sort-icon caret-down ']"))
                             ).click()
@@ -463,10 +465,10 @@ def baixar_arquivos(tipo):
                     
                     # Captura estado atual da pasta antes do download
                     existentes = {f for f in Path(pasta).iterdir() if f.is_file()}
-                    print(f"✓ Arquivos atuais na pasta: {len(existentes)}")
+                    print(f" Arquivos atuais na pasta: {len(existentes)}")
                     
                     # Clica em "Mais opções"
-                    print("⏳ Clicando em 'Mais opções'...")
+                    print("Clicando em 'Mais opções'...")
                     botao_mais_opcoes = WebDriverWait(driver, 60).until(
                         EC.element_to_be_clickable((By.XPATH, "//*[@class='vcMenuBtn' and @aria-label='Mais opções']"))
                     )
@@ -474,48 +476,48 @@ def baixar_arquivos(tipo):
                     try:
                         botao_mais_opcoes.click()
                     except Exception:
-                        print("⚠️  Clique normal falhou, usando JavaScript...")
+                        print("Clique normal falhou, usando JavaScript...")
                         driver.execute_script("arguments[0].click();", botao_mais_opcoes)
                     
-                    print("✓ 'Mais opções' clicado")
+                    print(" 'Mais opções' clicado")
                     time.sleep(7)
                     
                     
                     # Clica em "Exportar dados"
-                    print("⏳ Clicando em 'Exportar dados'...")
+                    print("Clicando em 'Exportar dados'...")
                     WebDriverWait(driver, 60).until(
                         EC.element_to_be_clickable((By.XPATH, "//span[text()='Exportar dados']"))
                     ).click()
-                    print("✓ 'Exportar dados' clicado")
+                    print(" 'Exportar dados' clicado")
                     time.sleep(7)
                     
                     # Clica no botão "Exportar"
-                    print("⏳ Clicando no botão 'Exportar'...")
+                    print("Clicando no botão 'Exportar'...")
                     WebDriverWait(driver, 60).until(
                         EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Exportar']"))
                     ).click()
-                    print("✓ Botão 'Exportar' clicado")
+                    print(" Botão 'Exportar' clicado")
                     time.sleep(7)
                     
                     # Espera o download terminar
-                    print("⏳ Aguardando conclusão do download ordenado...")
+                    print("Aguardando conclusão do download ordenado...")
                     arquivo_ordenado = aguardar_download(existentes)
                     
                     if arquivo_ordenado:
                         # Verificação: Conta as linhas do arquivo
                         print("\n" + "=" * 60)
-                        print("🔍 VERIFICANDO NÚMERO DE LINHAS DO ARQUIVO")
+                        print("VERIFICANDO NÚMERO DE LINHAS DO ARQUIVO")
                         print("=" * 60)
                         
                         try:
                             df_temp = pd.read_excel(arquivo_ordenado)
                             total_linhas = len(df_temp)
-                            print(f"📊 Total de linhas no arquivo ordenado: {total_linhas}")
+                            print(f"Total de linhas no arquivo ordenado: {total_linhas}")
                             
                             # Define se precisa do segundo download baseado no número de linhas
                             if total_linhas < 150003:
-                                print(f"✅ Arquivo tem MENOS de 150.003 linhas ({total_linhas})")
-                                print("📌 NÃO será necessário segundo download - arquivo único será usado")
+                                print(f"Arquivo tem MENOS de 150.003 linhas ({total_linhas})")
+                                print("NÃO será necessário segundo download - arquivo único será usado")
                                 precisa_duplo_download = False
                                 
                                 # Salva como arquivo único (sem sufixo _ordenado)
@@ -524,10 +526,10 @@ def baixar_arquivos(tipo):
                                 nome_unico = f"{data_linha} {texto_linha_limpo} - {texto_consorcio} - {tipo}.xlsx"
                                 caminho_unico = os.path.join(diretorio_destino, nome_unico)
                                 shutil.move(str(arquivo_ordenado), caminho_unico)
-                                print(f"✅ Arquivo salvo como único: {nome_unico}")
+                                print(f"Arquivo salvo como único: {nome_unico}")
                             else:
-                                print(f"⚠️  Arquivo tem {total_linhas} linhas (≥ 150.003)")
-                                print("📌 Segundo download (consolidado) SERÁ necessário")
+                                print(f"Arquivo tem {total_linhas} linhas (≥ 150.003)")
+                                print("Segundo download (consolidado) SERÁ necessário")
                                 
                                 # Salva como arquivo ordenado
                                 os.makedirs(diretorio_destino, exist_ok=True)
@@ -535,19 +537,19 @@ def baixar_arquivos(tipo):
                                 nome_ordenado = f"{data_linha} {texto_linha_limpo} - {texto_consorcio} - {tipo}_ordenado.xlsx"
                                 caminho_ordenado = os.path.join(diretorio_destino, nome_ordenado)
                                 shutil.move(str(arquivo_ordenado), caminho_ordenado)
-                                print(f"✅ Arquivo ordenado salvo: {nome_ordenado}")
+                                print(f"Arquivo ordenado salvo: {nome_ordenado}")
                         
                         except Exception as e:
-                            print(f"❌ ERRO ao verificar linhas do arquivo: {e}")
-                            print("⚠️  Continuando com download duplo por segurança...")
+                            print(f"ERRO ao verificar linhas do arquivo: {e}")
+                            print("Continuando com download duplo por segurança...")
                             os.makedirs(diretorio_destino, exist_ok=True)
                             texto_linha_limpo = texto_linha.replace('/', '')
                             nome_ordenado = f"{data_linha} {texto_linha_limpo} - {texto_consorcio} - {tipo}_ordenado.xlsx"
                             caminho_ordenado = os.path.join(diretorio_destino, nome_ordenado)
                             shutil.move(str(arquivo_ordenado), caminho_ordenado)
-                            print(f"✅ Arquivo ordenado salvo: {nome_ordenado}")
+                            print(f"Arquivo ordenado salvo: {nome_ordenado}")
                     else:
-                        print(f"❌ ERRO: Download ordenado não concluído para linha {i}")
+                        print(f"ERRO: Download ordenado não concluído para linha {i}")
                         continue
 
                 
@@ -555,12 +557,12 @@ def baixar_arquivos(tipo):
                 # ==== SEGUNDO DOWNLOAD (CONSOLIDADO ou ÚNICO) ====
                 sufixo = "_consolidado" if precisa_duplo_download else ""
                 print("\n" + "=" * 60)
-                print(f"📥 INICIANDO {'SEGUNDO' if precisa_duplo_download else ''} DOWNLOAD{' (CONSOLIDADO)' if precisa_duplo_download else ''}")
+                print(f"INICIANDO {'SEGUNDO' if precisa_duplo_download else ''} DOWNLOAD{' (CONSOLIDADO)' if precisa_duplo_download else ''}")
                 print("=" * 60)
                 
-                # 🔽 Ordenação SOMENTE para Transação
+                #  Ordenação SOMENTE para Transação
                 if tipo == "Transação":
-                    print("⏳ Preparando para reordenar...")
+                    print("Preparando para reordenar...")
                 
                     # Mover o mouse novamente para garantir que os ícones apareçam
                     elemento_para_revelar = WebDriverWait(driver, 60).until(
@@ -570,7 +572,7 @@ def baixar_arquivos(tipo):
                     actions.move_to_element(elemento_para_revelar).perform()
                     time.sleep(3)
                 
-                    print("⏳ Clicando na ordenação novamente...")
+                    print("Clicando na ordenação novamente...")
                     WebDriverWait(driver, 60).until(
                         EC.element_to_be_clickable((By.XPATH, "//*[contains(@class, 'powervisuals-glyph') and contains(@class, 'sort-icon')]"))
                     ).click()
@@ -579,10 +581,10 @@ def baixar_arquivos(tipo):
 
                 # Captura estado atual da pasta antes do download
                 existentes = {f for f in Path(pasta).iterdir() if f.is_file()}
-                print(f"✓ Arquivos atuais na pasta: {len(existentes)}")
+                print(f" Arquivos atuais na pasta: {len(existentes)}")
                 
                 # Clica em "Mais opções" e "Exportar"
-                print("⏳ Clicando em 'Mais opções'...")
+                print("Clicando em 'Mais opções'...")
                 botao_mais_opcoes = WebDriverWait(driver, 60).until(
                     EC.element_to_be_clickable((By.XPATH, "//*[@class='vcMenuBtn' and @aria-label='Mais opções']"))
                 )
@@ -590,28 +592,28 @@ def baixar_arquivos(tipo):
                 try:
                     botao_mais_opcoes.click()
                 except Exception:
-                    print("⚠️  Clique normal falhou, usando JavaScript...")
+                    print("Clique normal falhou, usando JavaScript...")
                     driver.execute_script("arguments[0].click();", botao_mais_opcoes)
                 
-                print("✓ 'Mais opções' clicado")
+                print("'Mais opções' clicado")
                 time.sleep(7)
                 
-                print("⏳ Clicando em 'Exportar dados'...")
+                print("Clicando em 'Exportar dados'...")
                 WebDriverWait(driver, 60).until(
                     EC.element_to_be_clickable((By.XPATH, "//span[text()='Exportar dados']"))
                 ).click()
-                print("✓ 'Exportar dados' clicado")
+                print("'Exportar dados' clicado")
                 time.sleep(7)
                 
-                print("⏳ Clicando no botão 'Exportar'...")
+                print(" Clicando no botão 'Exportar'...")
                 WebDriverWait(driver, 60).until(
                     EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Exportar']"))
                 ).click()
-                print("✓ Botão 'Exportar' clicado")
+                print(" Botão 'Exportar' clicado")
                 time.sleep(7)
                 
                 # Espera o download terminar
-                print("⏳ Aguardando conclusão do download...")
+                print(" Aguardando conclusão do download...")
                 arquivo_baixado = aguardar_download(existentes)
                 
                 if arquivo_baixado:
@@ -621,45 +623,45 @@ def baixar_arquivos(tipo):
                     nome_arquivo_novo = f"{data_linha} {texto_linha_limpo} - {texto_consorcio} - {tipo}{sufixo}.xlsx"
                     caminho_novo = os.path.join(diretorio_destino, nome_arquivo_novo)
                     shutil.move(str(arquivo_baixado), caminho_novo)
-                    print(f"✅ Arquivo salvo: {nome_arquivo_novo}")
+                    print(f" Arquivo salvo: {nome_arquivo_novo}")
                 else:
-                    print(f"❌ ERRO: Download não concluído para linha {i}")
-                    print("📁 Arquivos atuais na pasta de downloads:")
+                    print(f" ERRO: Download não concluído para linha {i}")
+                    print(" Arquivos atuais na pasta de downloads:")
                     for f in Path(pasta).iterdir():
                         if f.is_file():
                             print(f"  - {f.name}")
                     break
                 
                 # Voltar à página anterior
-                print("⏳ Voltando à página anterior...")
+                print(" Voltando à página anterior...")
                 WebDriverWait(driver, 60).until(
                     EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Voltar . Clique aqui para voltar à página anterior neste relatório']"))
                 ).click()
-                print("✓ Voltou à página anterior")
+                print(" Voltou à página anterior")
                 time.sleep(10)
                 
-                print(f"✅ Linha {i} processada com sucesso!")
+                print(f" Linha {i} processada com sucesso!")
             
             except Exception as e:
-                print(f"\n❌ ERRO ao processar linha {i}: {e}")
+                print(f"\n ERRO ao processar linha {i}: {e}")
                 import traceback
                 traceback.print_exc()
                 
                 # Tenta voltar à página anterior mesmo em caso de erro
                 try:
-                    print("⏳ Tentando voltar à página anterior após erro...")
+                    print(" Tentando voltar à página anterior após erro...")
                     WebDriverWait(driver, 30).until(
                         EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Voltar . Clique aqui para voltar à página anterior neste relatório']"))
                     ).click()
                     time.sleep(10)
                 except:
-                    print("⚠️  Não foi possível voltar à página anterior")
+                    print("  Não foi possível voltar à página anterior")
                 
                 break
         
         # Validação final
         print("\n" + "=" * 60)
-        print("📊 VALIDAÇÃO FINAL")
+        print(" VALIDAÇÃO FINAL")
         print("=" * 60)
         
         arquivos_baixados = len(list(pasta_final.glob(f"{DATA_ORDEM}*{consorcio_selecionado} - {tipo}.xlsx")))
@@ -676,13 +678,13 @@ def baixar_arquivos(tipo):
         print(f"Linhas esperadas: {linhas_esperadas}")
         
         if total_arquivos < linhas_esperadas:
-            print(f"\n⚠️  Download INCOMPLETO do consórcio {consorcio_selecionado} de {tipo}!")
+            print(f"\n  Download INCOMPLETO do consórcio {consorcio_selecionado} de {tipo}!")
             print(f"Esperado: {linhas_esperadas} | Obtido: {total_arquivos}")
         else:
-            print(f"\n✅ Download completo do consórcio {consorcio_selecionado} de {tipo}.")
+            print(f"\n Download completo do consórcio {consorcio_selecionado} de {tipo}.")
     
     except Exception as e:
-        print(f"\n❌ ERRO FATAL na função baixar_arquivos({tipo}): {e}")
+        print(f"\n ERRO FATAL na função baixar_arquivos({tipo}): {e}")
         import traceback
         traceback.print_exc()
 
@@ -781,7 +783,7 @@ def selecionar_consorcio(consorcio):
 selecionar_consorcio("Internorte")
 selecionar_consorcio("Intersul")
 selecionar_consorcio("Santa Cruz")
-#selecionar_consorcio("Transcarioca")
+selecionar_consorcio("Transcarioca")
 
 
 
@@ -807,7 +809,7 @@ def extrair_id_do_excel(df, arquivo):
         if match:
             return match.group(1)
 
-    print(f"⚠️ ID NÃO encontrado no arquivo: {arquivo}")
+    print(f" ID NÃO encontrado no arquivo: {arquivo}")
     return None
 
 # Lista para armazenar os DataFrames
@@ -825,7 +827,7 @@ for arquivo in os.listdir(diretorio_destino):
     
     # IGNORA ARQUIVOS QUE CONTENHAM "RESUMO" NO NOME
     if 'resumo' in arquivo.lower():
-        print(f"⏭️ Ignorando arquivo resumo: {arquivo}")
+        print(f" Ignorando arquivo resumo: {arquivo}")
         continue
         
     if arquivo.endswith('.xlsx') and termo in arquivo and str(DATA_ORDEM) in arquivo:
@@ -870,7 +872,7 @@ for arquivo in os.listdir(diretorio_destino):
             chave_base = arquivo  # ou mesma lógica usada acima
         
             if chave_base in bases_com_par:
-                print(f"⛔ Arquivo base ignorado (existe ordenado+consolidado): {arquivo}")
+                print(f" Arquivo base ignorado (existe ordenado+consolidado): {arquivo}")
                 continue
         
             df = pd.read_excel(
@@ -912,10 +914,10 @@ for chave_base, arquivos in arquivos_para_consolidar.items():
         df_completo['Data'] = DATA_ORDEM
         df_completo['Id'] = arquivos['id']
 
-        # 🔹 SALVA ARQUIVO FINAL DO ESPECIAL
+        #  SALVA ARQUIVO FINAL DO ESPECIAL
         nome_base = chave_base.replace('.xlsx', '')
         arquivo_especial = (
-            f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/"
+            f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/"
             f"{DATA_ORDEM}_{nome_base}_Transacao_ESPECIAL.csv"
         )
 
@@ -927,15 +929,15 @@ for chave_base, arquivos in arquivos_para_consolidar.items():
             decimal="."
         )
 
-        print(f"✅ Arquivo ESPECIAL criado: {arquivo_especial}")
-        print(f"📊 Linhas no arquivo especial: {len(df_completo)}")
+        print(f" Arquivo ESPECIAL criado: {arquivo_especial}")
+        print(f" Linhas no arquivo especial: {len(df_completo)}")
 
-        # ✅ ADICIONA À LISTA PARA IR PRO BIGQUERY
+        #  ADICIONA À LISTA PARA IR PRO BIGQUERY
         lista_dataframes.append(df_completo)
-        print(f"✅ Arquivo ESPECIAL adicionado à lista principal!")
+        print(f" Arquivo ESPECIAL adicionado à lista principal!")
 
     else:
-        print(f"\n⚠️ AVISO: Arquivo especial incompleto ignorado: {chave_base}")
+        print(f"\n AVISO: Arquivo especial incompleto ignorado: {chave_base}")
 
 # Concatena todos os DataFrames em um único
 # Concatena todos os DataFrames em um único
@@ -951,7 +953,7 @@ print(f"\n=== CONTAGEM APÓS REMOVER DUPLICATAS FINAIS ===")
 print(f"Total de linhas SEM DUPLICATAS: {len(transacao)}")
 
 # Organiza a ordem das colunas do DataFrame
-# ✅ ORDEM CORRIGIDA (Data e Id estão no final nos arquivos especiais)
+#  ORDEM CORRIGIDA (Data e Id estão no final nos arquivos especiais)
 transacao = transacao[['Data Transação','Data Processamento','Ordem Ressarcimento','Consórcio','Operadora','Nr Linha','Modal','Linha','Prefixo Veículo','Validador','Tipo Transação','Tipo Usuário','Produto','Tipo Produto','Mídia','Transação','Qtd Transação','Valor Tarifa','Valor Transação','Data','Id']]
 
 # Reordena para colocar Data e Id no início
@@ -983,11 +985,11 @@ for coluna in ['ordem_ressarcimento', 'prefixo_veiculo']:
     )
 
 # CRIA O ARQUIVO CONSOLIDADO NA PASTA BASES_RESSARCIMENTO
-arquivo_consolidado = f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM}_Transacao_Consolidado.csv"
+arquivo_consolidado = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM}_Transacao_Consolidado.csv"
 transacao.to_csv(arquivo_consolidado, index=False, sep=";", encoding="utf-8-sig", decimal=".")
 
-print(f"\n✅ Arquivo consolidado criado: {arquivo_consolidado}")
-print(f"📊 Total de linhas no arquivo (sem duplicatas): {len(transacao)}")
+print(f"\n Arquivo consolidado criado: {arquivo_consolidado}")
+print(f" Total de linhas no arquivo (sem duplicatas): {len(transacao)}")
 
 # Configurações principais
 project_id = "ro-areatecnica"
@@ -1007,7 +1009,7 @@ schema = [
     bigquery.SchemaField("data_processamento", "DATETIME"),
     bigquery.SchemaField("ordem_ressarcimento", "STRING"),
     bigquery.SchemaField("operadora", "STRING"),
-    bigquery.SchemaField("servico", "STRING"),  # ← Mude de nr_linha para servico
+    bigquery.SchemaField("servico", "STRING"),  # Mude de nr_linha para servico
     bigquery.SchemaField("modal", "STRING"),
     bigquery.SchemaField("linha", "STRING"),
     bigquery.SchemaField("prefixo_veiculo", "STRING"),
@@ -1031,7 +1033,7 @@ job_config = bigquery.LoadJobConfig(
     schema=schema
 )
 
-print(f"\n🚀 Enviando arquivo para o BigQuery: {source_file}")
+print(f"\n Enviando arquivo para o BigQuery: {source_file}")
 
 # Carrega o arquivo local para o BigQuery
 with open(source_file, "rb") as file:
@@ -1042,10 +1044,10 @@ job.result()
 
 # Verifique os erros detalhados
 if job.errors:
-    print(f"❌ Erros durante o carregamento: {job.errors}")
+    print(f" Erros durante o carregamento: {job.errors}")
 else:
-    print(f"✅ Arquivo {source_file} carregado com sucesso para {table_ref}!")
-    print(f"📊 Total de linhas enviadas: {len(transacao)}")
+    print(f" Arquivo {source_file} carregado com sucesso para {table_ref}!")
+    print(f" Total de linhas enviadas: {len(transacao)}")
 
 #RATEIO
 #data = '18-02-2025'
@@ -1120,7 +1122,7 @@ for coluna in colunas_float:
     rateio[coluna] = rateio[coluna].astype(float)
 
 # Salvar no CSV sem converter inteiros para float
-rateio.to_csv(f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Rateio.csv", 
+rateio.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Rateio.csv", 
                  index=False, sep=";", encoding="utf-8-sig", decimal=".")
 
 
@@ -1128,7 +1130,7 @@ rateio.to_csv(f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} 
 project_id = "ro-areatecnica"
 dataset_id = "ressarcimento_jae"
 table_id = "rateio"
-source_file = f"C:/Users/karine.lisboa/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Rateio.csv"
+source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Rateio.csv"
 
 
 # Define a tabela de destino no formato completo
