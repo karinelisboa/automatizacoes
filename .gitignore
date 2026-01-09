@@ -1,0 +1,15 @@
+# segredos
+.env
+**/.env
+*.json
+
+# python
+__pycache__/
+*.pyc
+
+# dados gerados
+*.xlsx
+*.csv
+
+# vscode
+.vscode/

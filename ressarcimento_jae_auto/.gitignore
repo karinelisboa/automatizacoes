@@ -1,0 +1,14 @@
+# Ambiente
+.env
+*.json
+
+# Python
+__pycache__/
+.venv/
+
+# Downloads e bases
+Downloads/
+Bases_Ressarcimento/
+*.xlsx
+*.csv
+*.log
