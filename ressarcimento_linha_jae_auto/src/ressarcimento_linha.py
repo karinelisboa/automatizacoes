@@ -17,6 +17,7 @@ from google.cloud import bigquery
 import shutil
 from dotenv import load_dotenv
 
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / "config" / ".env"
 
@@ -175,6 +176,7 @@ time.sleep(5)
 campo_data_inicio = WebDriverWait(driver, 60).until(
     EC.presence_of_element_located((By.XPATH, "//*[contains(@aria-label, 'Data de início')]"))
 )
+time.sleep(0.5)
 campo_data_fim = WebDriverWait(driver, 60).until(
     EC.presence_of_element_located((By.XPATH, "//*[contains(@aria-label, 'Data de término')]"))
 )
@@ -198,221 +200,165 @@ indicador.click()
 
 
 
-# DOWNLOAD
-######################################### RATEIO E TRANSACAO
-# FUNCOES
-# Função para realizar o download dos arquivos
-def baixar_arquivos(tipo):
-    """
-    Função para baixar arquivos do Power BI.
-    :param tipo: Tipo de arquivo a ser baixado ('Ordem Ressarcimento' ou 'Ordem Rateio').
-    """
-    # total de linha - só para contar
-    linhas = WebDriverWait(driver, 30).until(
-        EC.presence_of_all_elements_located((
-            By.XPATH,
-            "//div[@role='gridcell' and @column-index='3' and @aria-colindex='5']"
-        ))
-    )
+# # DOWNLOAD
+# ######################################### RATEIO E TRANSACAO
+# # FUNCOES
+# # Função para realizar o download dos arquivos
+# try:
+#     # FUNÇÃO DE DOWNLOAD
+#     def baixar_arquivos(tipo):
+
+#         linhas = WebDriverWait(driver, 30).until(
+#             EC.presence_of_all_elements_located((
+#                 By.XPATH,
+#                 "//div[@role='gridcell' and @column-index='3' and @aria-colindex='5']"
+#             ))
+#         )
+
+#         print(f"Total de linhas encontradas: {len(linhas)}")
+
+#         i = 1
+#         empresas_processadas = 0
+
+#         while empresas_processadas < 4:
+
+#             try:
+#                 consorcio = WebDriverWait(driver, 60).until(
+#                     EC.presence_of_element_located((
+#                         By.XPATH,
+#                         f"(//div[@role='gridcell' and @column-index='2' and @aria-colindex='4'])[{i}]"
+#                     ))
+#                 )
+#                 texto_consorcio = consorcio.text
+#                 time.sleep(2)
+
+#                 data_linha = WebDriverWait(driver, 60).until(
+#                     EC.presence_of_element_located((
+#                         By.XPATH,
+#                         f"(//div[@role='gridcell' and @column-index='0' and @aria-colindex='2'])[{i}]"
+#                     ))
+#                 )
+#                 data_linha = data_linha.text.replace('/', '-')
+#                 time.sleep(2)
+
+#                 linha = WebDriverWait(driver, 60).until(
+#                     EC.element_to_be_clickable((
+#                         By.XPATH,
+#                         f"(//div[@role='gridcell' and @column-index='3' and @aria-colindex='5'])[{i}]"
+#                     ))
+#                 )
+
+#                 driver.execute_script("arguments[0].scrollIntoView(true);", linha)
+#                 time.sleep(1)
+#                 driver.execute_script("arguments[0].click();", linha)
+#                 time.sleep(7)
+
+#                 existentes = {f for f in Path(pasta).iterdir() if f.is_file()}
+
+#                 botao_drill = WebDriverWait(driver, 60).until(
+#                     EC.element_to_be_clickable((
+#                         By.XPATH,
+#                         f"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em {tipo} Drill']"
+#                     ))
+#                 )
+#                 botao_drill.click()
+#                 time.sleep(10)
+
+#                 elemento_para_revelar = WebDriverWait(driver, 15).until(
+#                     EC.presence_of_element_located((
+#                         By.XPATH,
+#                         "(//div[@role='columnheader' and @column-index='0' and @aria-colindex='2'])[1]"
+#                     ))
+#                 )
+#                 ActionChains(driver).move_to_element(elemento_para_revelar).perform()
+#                 time.sleep(3)
+
+#                 mais_opcoes = WebDriverWait(driver, 60).until(
+#                     EC.presence_of_element_located((By.XPATH, "//*[contains(@aria-label,'Mais opções')]"))
+#                 )
+#                 driver.execute_script("arguments[0].click();", mais_opcoes)
+#                 time.sleep(3)
+
+#                 exportar_dados = WebDriverWait(driver, 30).until(
+#                     EC.element_to_be_clickable((By.XPATH, "//span[text()='Exportar dados']"))
+#                 )
+#                 exportar_dados.click()
+#                 time.sleep(3)
+
+#                 botao_exportar = WebDriverWait(driver, 30).until(
+#                     EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Exportar']"))
+#                 )
+#                 botao_exportar.click()
+#                 time.sleep(5)
+
+#                 botao_voltar = WebDriverWait(driver, 30).until(
+#                     EC.element_to_be_clickable((
+#                         By.XPATH,
+#                         "//*[@aria-label='Voltar . Clique aqui para voltar à página anterior neste relatório']"
+#                     ))
+#                 )
+#                 botao_voltar.click()
+#                 time.sleep(7)
+
+#                 # espera download
+#                 fim = time.time() + 520
+#                 arquivo = None
+
+#                 while time.time() < fim:
+#                     atuais = {f for f in Path(pasta).iterdir() if f.is_file()}
+#                     novos = [f for f in atuais - existentes if f.suffix.lower() == ".xlsx"]
+#                     if novos:
+#                         arquivo = novos[0]
+#                         break
+#                     time.sleep(1)
+
+#                 if not arquivo:
+#                     print(f"⚠️ Arquivo não baixado para linha {i}")
+#                     i += 1
+#                     continue
+
+#                 os.makedirs(diretorio_destino, exist_ok=True)
+#                 novo_nome = f"{data_linha} - {texto_consorcio} - {tipo}.xlsx"
+#                 shutil.move(str(arquivo), os.path.join(diretorio_destino, novo_nome))
+#                 print(f"✅ Arquivo baixado: {novo_nome}")
+
+#                 empresas_processadas += 1
+#                 i += 1
+#                 time.sleep(5)
+
+#             except Exception as e:
+#                 print(f"❌ Erro linha {i} ({tipo}): {e}")
+#                 i += 1
+#                 continue
+
+#     # EXECUTA DOWNLOADS
+#     print("\n📥 Iniciando download de Ordem Ressarcimento...")
+#     baixar_arquivos("Ordem Ressarcimento")
     
-    linhas_tabela = len(linhas)
-    print(f"Total de linhas encontradas: {linhas_tabela}")
+#     print("\n📥 Iniciando download de Ordem Rateio...")
+#     baixar_arquivos("Ordem Rateio")
 
-    
-    i = 1
-    empresas_processadas = 0
-    
-    while empresas_processadas < 4:
-        try:
-            print(f"\n=== Tentando processar índice {i} para {tipo} ===")
-            
-            consorcio = WebDriverWait(driver, 60).until(
-                EC.presence_of_element_located((By.XPATH, f"(//div[@role='gridcell' and @column-index='2' and @aria-colindex='4'])[{i}]"))
-            )
-            texto_consorcio = consorcio.text
-            print(f" Consórcio encontrado: {texto_consorcio}")
-            time.sleep(3)
-            
-            data_linha = WebDriverWait(driver, 60).until(
-                EC.presence_of_element_located((By.XPATH, f"(//div[@role='gridcell' and @column-index='0' and @aria-colindex='2'])[{i}]"))
-            )
-            data_linha = data_linha.text.replace('/', '-')
-            print(f" Data encontrada: {data_linha}")
-            time.sleep(3)
-            
-            linha = WebDriverWait(driver, 60).until(
-                EC.element_to_be_clickable((By.XPATH, f"(//div[@role='gridcell' and @column-index='3' and @aria-colindex='5'])[{i}]"))
-            )
-            
-            driver.execute_script("arguments[0].scrollIntoView(true);", linha)
-            time.sleep(2)
-            driver.execute_script("arguments[0].click();", linha)
-            print(f" Clicou na linha {i} da página principal")
-            time.sleep(7)
-            
+# except Exception as e:
+#     print(f"❌ ERRO NO PROCESSAMENTO: {e}")
+#     import traceback
+#     traceback.print_exc()
 
-            existentes = {f for f in Path(pasta).iterdir() if f.is_file()}
-            print(f" Arquivos existentes capturados: {len(existentes)} arquivos")
-
-            # Clica no botão de drill-through para ir à página de detalhes
-            print(f"Tentando clicar no drill-through de '{tipo}'...")
-            botao_drill = WebDriverWait(driver, 60).until(
-                EC.element_to_be_clickable((By.XPATH, f"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em {tipo} Drill']"))
-            )
-            botao_drill.click()
-            print(f" Clicou no drill-through de {tipo}")
-            time.sleep(10)
-            
-            # AGORA ESTAMOS NA PÁGINA DE DRILL-THROUGH - NÃO CLICA EM NENHUMA LINHA
-            # Move o mouse para revelar "Mais opções" DIRETAMENTE
-            print("Tentando revelar 'Mais opções' na página de drill-through...")
-            elemento_para_revelar = WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.XPATH, "(//div[@role='columnheader' and @column-index='0' and @aria-colindex='2'])[1]"))
-            )
-            actions = ActionChains(driver)
-            actions.move_to_element(elemento_para_revelar).perform()
-            print(" Mouse movido para revelar menu")
-            time.sleep(5)
-            
-            # Clica em "Mais opções"
-            print("Tentando clicar em 'Mais opções'...")
-            mais_opcoes = WebDriverWait(driver, 60).until(
-                EC.presence_of_element_located((By.XPATH, "//*[contains(@aria-label,'Mais opções')]"))
-            )
-            
-            driver.execute_script("arguments[0].click();", mais_opcoes)
-            print(" Clicou em 'Mais opções' via JS")
-            time.sleep(3)
-
-            print(" Clicou em 'Mais opções'")
-            time.sleep(5)
-            
-            # Clica em "Exportar dados"
-            print("Tentando clicar em 'Exportar dados'...")
-            exportar_dados = WebDriverWait(driver, 30).until(
-                EC.element_to_be_clickable((By.XPATH, "//span[text()='Exportar dados']"))
-            )
-            exportar_dados.click()
-            print(" Clicou em 'Exportar dados'")
-            time.sleep(5)
-            
-            # Clica no botão "Exportar" final
-            print("Tentando clicar no botão 'Exportar' final...")
-            clicar_exportar(driver, tentativas=5)
-            time.sleep(5)
-            print(" Clicou no botão 'Exportar' final - Download deve começar agora")
-            time.sleep(5)
-            
-            # Voltar à página anterior (página principal)
-            print("Voltando à página principal...")
-            botao_voltar = WebDriverWait(driver, 30).until(
-                EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Voltar . Clique aqui para voltar à página anterior neste relatório']"))
-            )
-            botao_voltar.click()
-            print(" Voltou à página principal")
-            time.sleep(7)
-            
-            # Espera o download terminar
-            print("Aguardando download do arquivo...")
-            download_timeout = 520
-            poll_interval = 1.0
-            fim = time.time() + download_timeout
-            arquivo_mais_recente = None
-            tentativas = 0
-
-            while time.time() < fim:
-                tentativas += 1
-                if tentativas % 10 == 0:  # Print a cada 10 segundos
-                    print(f"  Aguardando... ({tentativas} segundos)")
-                
-                atuais = {f for f in Path(pasta).iterdir() if f.is_file()}
-                novos = atuais - existentes
-                
-                if not novos:
-                    time.sleep(poll_interval)
-                    continue
-
-                # ignora temporários
-                temporarios = [f for f in novos if f.suffix in {".crdownload", ".part"}]
-                if temporarios:
-                    if tentativas % 5 == 0:
-                        print(f"  Arquivo temporário detectado: {temporarios[0].name}")
-                    time.sleep(poll_interval)
-                    continue
-
-                candidatos = [f for f in novos if f.suffix.lower() == ".xlsx"]
-                if not candidatos:
-                    time.sleep(poll_interval)
-                    continue
-
-                print(f"  Arquivo .xlsx detectado: {candidatos[0].name}")
-
-                # espera estabilidade de tamanho
-                estabilizado = False
-                for candidato in candidatos:
-                    tamanho_anterior = -1
-                    stable_since = time.time()
-                    while time.time() < fim:
-                        try:
-                            atual_size = candidato.stat().st_size
-                        except FileNotFoundError:
-                            break
-                        if atual_size == tamanho_anterior:
-                            if time.time() - stable_since >= poll_interval:
-                                arquivo_mais_recente = candidato
-                                estabilizado = True
-                                print(f" Download estabilizado: {candidato.name} ({atual_size} bytes)")
-                                break
-                        else:
-                            tamanho_anterior = atual_size
-                            stable_since = time.time()
-                        time.sleep(poll_interval)
-                    if estabilizado:
-                        break
-                if estabilizado:
-                    break
-                time.sleep(poll_interval)
-
-            if not arquivo_mais_recente:
-                print(f" Download não concluído para linha {i} de {tipo}. Timeout atingido.")
-                i += 1
-                continue
-
-            # Garante que a pasta de destino exista
-            os.makedirs(diretorio_destino, exist_ok=True)
-
-            
-            # Renomeia o arquivo no padrão
-            nome_arquivo_novo = f"{data_linha} - {texto_consorcio} - {tipo}.xlsx"
-            
-            # Move para a pasta final
-            caminho_novo = os.path.join(diretorio_destino, nome_arquivo_novo)
-            shutil.move(str(arquivo_mais_recente), caminho_novo)
-            print(f" Arquivo movido para: {caminho_novo}")
-            
-            empresas_processadas += 1
-            print(f" Empresa {empresas_processadas}/4 processada com sucesso!")
-            i += 1
-            time.sleep(5)
-        
-        except Exception as e:
-            print(f" Erro na linha {i} ({tipo}): {e}")
-            import traceback
-            traceback.print_exc()
-            i += 1
-            continue
+# finally:
+#     driver.quit()
+#     print(f"\n🔁 Navegador fechado")
 
 
-baixar_arquivos("Ordem Ressarcimento")
-print("==============================================")
-print("FINALIZADO: Download da ORDEM RESSARCIMENTO")
-print("Iniciando agora o download da ORDEM RATEIO")
-print("==============================================")
-baixar_arquivos("Ordem Rateio")
+
+# baixar_arquivos("Ordem Ressarcimento")
+# print("==============================================")
+# print("FINALIZADO: Download da ORDEM RESSARCIMENTO")
+# print("Iniciando agora o download da ORDEM RATEIO")
+# print("==============================================")
+# baixar_arquivos("Ordem Rateio")
 
 
-# Fecha o navegador
-driver.quit()
+# # Fecha o navegador
+# driver.quit()
 
 
 #CONSOLIDANDO OS ARQUIVOS BAIXADOS EM UM ARQUIVO E SUBINDO NA TABELA DO BIGQUERY

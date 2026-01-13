@@ -14,6 +14,10 @@ from google.cloud import bigquery
 import shutil
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+
+print("Olá, ação, índice, coração")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / "config" / ".env"
