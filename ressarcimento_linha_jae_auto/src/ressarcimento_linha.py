@@ -216,81 +216,33 @@ print(f"Valores preenchidos - Início: {valor_inicio}, Fim: {valor_fim}")
 
 # Clica no elemento para fechar o filtro - TENTATIVA COM MÚLTIPLOS SELETORES
 print("Tentando fechar o filtro...")
+# Clica no elemento para fechar o filtro - TENTATIVA COM MÚLTIPLOS SELETORES
+# Fechar o filtro usando atalhos de teclado
+print("Fechando o filtro com atalhos de teclado...")
 
-tentativas_fechar = [
-    # ======== PATH (o que você já tinha)
-    ("By XPATH path class",
-     "//path[@class='fill ui-role-button-fill sub-selectable']"),
+# Ctrl + F6 para ativar modo cegueira visual
+ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.F6).key_up(Keys.CONTROL).perform()
+ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.F6).key_up(Keys.CONTROL).perform()
+ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.F6).key_up(Keys.CONTROL).perform()
+ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.F6).key_up(Keys.CONTROL).perform()
+time.sleep(1)
+print("✓ Ctrl+F6 pressionado (modo cegueira visual ativado)")
 
-    ("By XPATH path data-sub-selection",
-     "//path[contains(@data-sub-selection-object-name, 'tile_default')]"),
+# Enter
+ActionChains(driver).send_keys(Keys.RETURN).perform()
+time.sleep(0.5)
+print("✓ Enter pressionado")
 
-    ("By XPATH path fill",
-     "//path[@fill='#FFFFFF']"),
+# 5 setas para cima
+for i in range(5):
+    ActionChains(driver).send_keys(Keys.ARROW_UP).perform()
+    time.sleep(0.3)
+print("✓ 5 setas para cima pressionadas")
 
-    ("By CSS path",
-     "path.fill.ui-role-button-fill"),
-
-    ("By XPATH qualquer path",
-     "//path[contains(@class, 'ui-role-button-fill')]"),
-
-    # ======== G (grupo clicável no SVG)
-    ("By XPATH g tile",
-     "//g[contains(@class,'tile') and @cursor='pointer']"),
-
-    ("By XPATH g parent do path",
-     "//g[.//path[contains(@class,'ui-role-button-fill')]]"),
-
-    # ======== SVG
-    ("By XPATH svg tileSVG",
-     "//svg[contains(@class,'tileSVG')]"),
-
-    ("By XPATH svg com path",
-     "//svg[.//path[contains(@class,'ui-role-button-fill')]]"),
-
-    # ======== DIV CONTAINER (HTML que você mandou)
-    ("By XPATH div visual-actionButton",
-     "//div[contains(@class,'visual-actionButton')]"),
-
-    ("By XPATH div visual-content-desc",
-     "//div[@data-testid='visual-content-desc']"),
-
-    ("By XPATH div visual customPadding",
-     "//div[contains(@class,'visual') and contains(@class,'customPadding')]"),
-]
-
-elemento_fechado = False
-
-for descricao, seletor in tentativas_fechar:
-    try:
-        print(f"  Tentando: {descricao}")
-
-        if seletor.startswith("//"):
-            elemento = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.XPATH, seletor))
-            )
-        else:
-            elemento = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, seletor))
-            )
-
-        # 👉 clique REAL (não .click())
-        driver.execute_script("""
-            arguments[0].scrollIntoView({block:'center'});
-            arguments[0].dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
-            arguments[0].dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-            arguments[0].dispatchEvent(new MouseEvent('click', {bubbles:true}));
-        """, elemento)
-
-        time.sleep(1)
-        print(f"✓ Tentativa executada: {descricao}")
-        elemento_fechado = True
-        break
-
-    except Exception as e:
-        print(f"  ✗ Falhou: {descricao}")
-
-
+# Enter final
+ActionChains(driver).send_keys(Keys.RETURN).perform()
+time.sleep(1)
+print("✓ Enter final pressionado - Filtro fechado!")
 
 # DOWNLOAD
 ######################################### RATEIO E TRANSACAO
@@ -347,11 +299,14 @@ try:
 
                 existentes = {f for f in Path(pasta).iterdir() if f.is_file()}
 
+                # 🔧 CORREÇÃO: Dinamizar o XPath baseado no tipo
+                if tipo == "Ordem Ressarcimento":
+                    xpath_drill = r"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em Ordem Ressarcimento Drill Novo']"
+                else:  # Ordem Rateio
+                    xpath_drill = r"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em Ordem Rateio Drill Novo']"
+                
                 botao_drill = WebDriverWait(driver, 60).until(
-                    EC.element_to_be_clickable((
-                        By.XPATH,
-                        r"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em Ordem Rateio Drill Novo']"
-                    ))
+                    EC.element_to_be_clickable((By.XPATH, xpath_drill))
                 )
                 botao_drill.click()
                 time.sleep(10)
@@ -435,245 +390,232 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# finally:
-#     driver.quit()
-#     print(f"\n🔁 Navegador fechado")
+finally:
+    driver.quit()
+    print(f"\n🔁 Navegador fechado")
+
+#CONSOLIDANDO OS ARQUIVOS BAIXADOS EM UM ARQUIVO E SUBINDO NA TABELA DO BIGQUERY
+#Ordem Ressarcimento
+termo = 'Ordem Ressarcimento'
+
+# Lista para armazenar os DataFrames
+lista_dataframes = []
 
 
-
-# baixar_arquivos("Ordem Ressarcimento")
-# print("==============================================")
-# print("FINALIZADO: Download da ORDEM RESSARCIMENTO")
-# print("Iniciando agora o download da ORDEM RATEIO")
-# print("==============================================")
-# baixar_arquivos("Ordem Rateio")
-
-
-# # Fecha o navegador
-# driver.quit()
-
-
-# #CONSOLIDANDO OS ARQUIVOS BAIXADOS EM UM ARQUIVO E SUBINDO NA TABELA DO BIGQUERY
-# #Ordem Ressarcimento
-# termo = 'Ordem Ressarcimento'
+# Itera pelos arquivos na pasta
+for arquivo in os.listdir(diretorio_destino):
+    if arquivo.endswith('.xlsx') and 'Ordem Ressarcimento' in arquivo and str(data_ordem) in arquivo:
+        print(f"✅ Arquivo encontrado: {arquivo}")
+        caminho_completo = os.path.join(diretorio_destino, arquivo)
+        df = pd.read_excel(
+            caminho_completo,
+            dtype={
+                "Nr Linha": str,
+                "Ordem Ressarcimento": str,
+            }
+        )
         
-# # Lista para armazenar os DataFrames
-# lista_dataframes = []
+        if 'Internorte' in arquivo:
+            df['Consorcio'] = 'Internorte'
+        elif 'Santa Cruz' in arquivo:
+            df['Consorcio'] = 'Santa Cruz'
+        elif 'Intersul' in arquivo:
+            df['Consorcio'] = 'Intersul'
+        elif 'Transcarioca' in arquivo:
+            df['Consorcio'] = 'Transcarioca'
+
+        valor_ultima_linha = df.iloc[-1, 0]
+
+        match_consorcio = re.search(r'Filtros aplicados:\nid_ordem_pagamento_consorcio é (\d+)', valor_ultima_linha)
+        df['id_ordem_pagamento_consorcio'] = match_consorcio.group(1) if match_consorcio else None
+
+        match_pagamento = re.search(r'id_pagamento é (\d+)', valor_ultima_linha)
+        df['id_pagamento'] = match_pagamento.group(1) if match_pagamento else None
+
+        df = df.iloc[:-3]
+        lista_dataframes.append(df)
 
 
-# # Itera pelos arquivos na pasta
-# for arquivo in os.listdir(diretorio_destino):
-#     if arquivo.endswith('.xlsx') and termo in arquivo and str(data_ordem) in arquivo: 
-#         caminho_completo = os.path.join(diretorio_destino, arquivo)
-#         df = pd.read_excel(
-#             caminho_completo,
-#             dtype={
-#                 "Nr Linha": str,
-#                 "Ordem Ressarcimento": str,
-#             }
-#         )
+
+# Concatena todos os DataFrames em um único
+ordem_ressarcimento = pd.concat(lista_dataframes, ignore_index=True)
+
+# Organiza a ordem das colunas do DatFrame
+ordem_ressarcimento = ordem_ressarcimento[['Data Ordem Ressarcimento','Consorcio','Ordem Ressarcimento','id_ordem_pagamento_consorcio','id_pagamento','Status Ordem','Operadora','Nr Linha','Linha',
+                                           'Valor Bruto','Valor Taxa','Valor Líquido','Valor Débito','Qtd Débito','Valor Integração','Qtd Integração','Valor Rateiro Crédito','Qtd Rateio Crédito',
+                                           'Valor Rateio Débito','Qtd Rateio Débito','Valor Venda a Bordo','Qtd Venda a Bordo','Valor Gratuidade','Qtd Gratuidade']]
+
+# Renomea colunas
+ordem_ressarcimento.columns = ['data_ordem','consorcio','ordem_ressarcimento','id_ordem_pagamento_consorcio','id_pagamento','status_ordem','operadora','servico','linha',
+                              'valor_bruto','valor_taxa','valor_liquido','valor_debito','qtd_debito','valor_integracao','qtd_integracao','valor_rateio_credito','qtd_rateio_credito',
+                              'valor_rateio_debito','qtd_rateio_debito','valor_venda_a_bordo','qtd_venda_a_bordo','valor_gratuidade','qtd_gratuidade']
+
+
+# Padronização
+ordem_ressarcimento['data_ordem'] = pd.to_datetime(ordem_ressarcimento['data_ordem'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
+
+# Garantindo que valores inteiros fiquem sem ".0"
+colunas_inteiras = ['ordem_ressarcimento','id_ordem_pagamento_consorcio','id_pagamento','qtd_debito','qtd_integracao','qtd_rateio_credito','qtd_rateio_debito','qtd_venda_a_bordo','qtd_gratuidade'] 
+
+for coluna in colunas_inteiras:
+    ordem_ressarcimento[coluna] = ordem_ressarcimento[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
+
+# Salvar no CSV sem converter inteiros para float
+ordem_ressarcimento.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Ressarcimento.csv", 
+              index=False, sep=";", encoding="utf-8-sig", decimal=".")
+
+
+# Configurações principais
+project_id = os.getenv('BQ_PROJECT')
+dataset_id = os.getenv('BQ_DATASET')
+table_id = os.getenv('BQ_TABLE_RESUMO')
+source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Ressarcimento.csv"
+
+# Define a tabela de destino no formato completo
+table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+# Configurações do job de carregamento
+schema = [
+    bigquery.SchemaField("data_ordem", "DATE"),
+    bigquery.SchemaField("consorcio", "STRING"),
+    bigquery.SchemaField("ordem_ressarcimento", "STRING"),
+    bigquery.SchemaField("id_ordem_pagamento_consorcio", "STRING"),
+    bigquery.SchemaField("id_pagamento", "STRING"),
+    bigquery.SchemaField("status_ordem", "STRING"),
+    bigquery.SchemaField("operadora", "STRING"),
+    bigquery.SchemaField("servico", "STRING"),
+    bigquery.SchemaField("linha", "STRING"),
+    bigquery.SchemaField("valor_bruto", "FLOAT64"),
+    bigquery.SchemaField("valor_taxa", "FLOAT64"),
+    bigquery.SchemaField("valor_liquido", "FLOAT64"),
+    bigquery.SchemaField("valor_debito", "FLOAT64"),
+    bigquery.SchemaField("qtd_debito", "INTEGER"),
+    bigquery.SchemaField("valor_integracao", "FLOAT64"),
+    bigquery.SchemaField("qtd_integracao", "INTEGER"),
+    bigquery.SchemaField("valor_rateio_credito", "FLOAT64"),
+    bigquery.SchemaField("qtd_rateio_credito", "INTEGER"),
+    bigquery.SchemaField("valor_rateio_debito", "FLOAT64"),
+    bigquery.SchemaField("qtd_rateio_debito", "INTEGER"),
+    bigquery.SchemaField("valor_venda_a_bordo", "FLOAT64"),
+    bigquery.SchemaField("qtd_venda_a_bordo", "INTEGER"),
+    bigquery.SchemaField("valor_gratuidade", "FLOAT64"),
+    bigquery.SchemaField("qtd_gratuidade", "INTEGER")  
+]
+
+job_config = bigquery.LoadJobConfig(
+    source_format=bigquery.SourceFormat.CSV,
+    skip_leading_rows=1,
+    autodetect=False,      # Desabilitar autodetecção de tipos
+    field_delimiter=';',   # Garantir que o delimitador seja uma vírgula
+    schema=schema  # Definir o esquema manualmente
+)
+
+# Carrega o arquivo local para o BigQuery
+with open(source_file, "rb") as file:
+    job = client.load_table_from_file(file, table_ref, job_config=job_config)
+
+# Aguarda o job ser concluído
+client.close()
+
+
+
+#Ordem Rateio
+termo = 'Ordem Rateio'
         
-#         if 'Internorte' in arquivo:
-#             df['Consorcio'] = 'Internorte'
-#         elif 'Santa Cruz' in arquivo:
-#             df['Consorcio'] = 'Santa Cruz'
-#         elif 'Intersul' in arquivo:
-#             df['Consorcio'] = 'Intersul'
-#         elif 'Transcarioca' in arquivo:
-#             df['Consorcio'] = 'Transcarioca'
+# Lista para armazenar os DataFrames
+lista_dataframes = []
 
-#         valor_ultima_linha = df.iloc[-1, 0]
-
-#         match_consorcio = re.search(r'Filtros aplicados:\nid_ordem_pagamento_consorcio é (\d+)', valor_ultima_linha)
-#         df['id_ordem_pagamento_consorcio'] = match_consorcio.group(1) if match_consorcio else None
-
-#         match_pagamento = re.search(r'id_pagamento é (\d+)', valor_ultima_linha)
-#         df['id_pagamento'] = match_pagamento.group(1) if match_pagamento else None
-
-#         df = df.iloc[:-3]
-#         lista_dataframes.append(df)
-
-
-
-# # Concatena todos os DataFrames em um único
-# ordem_ressarcimento = pd.concat(lista_dataframes, ignore_index=True)
-
-# # Organiza a ordem das colunas do DatFrame
-# ordem_ressarcimento = ordem_ressarcimento[['Data Ordem Ressarcimento','Consorcio','Ordem Ressarcimento','id_ordem_pagamento_consorcio','id_pagamento','Status Ordem','Operadora','Nr Linha','Linha',
-#                                            'Valor Bruto','Valor Taxa','Valor Líquido','Valor Débito','Qtd Débito','Valor Integração','Qtd Integração','Valor Rateiro Crédito','Qtd Rateio Crédito',
-#                                            'Valor Rateio Débito','Qtd Rateio Débito','Valor Venda a Bordo','Qtd Venda a Bordo','Valor Gratuidade','Qtd Gratuidade']]
-
-# # Renomea colunas
-# ordem_ressarcimento.columns = ['data_ordem','consorcio','ordem_ressarcimento','id_ordem_pagamento_consorcio','id_pagamento','status_ordem','operadora','servico','linha',
-#                               'valor_bruto','valor_taxa','valor_liquido','valor_debito','qtd_debito','valor_integracao','qtd_integracao','valor_rateio_credito','qtd_rateio_credito',
-#                               'valor_rateio_debito','qtd_rateio_debito','valor_venda_a_bordo','qtd_venda_a_bordo','valor_gratuidade','qtd_gratuidade']
-
-
-# # Padronização
-# ordem_ressarcimento['data_ordem'] = pd.to_datetime(ordem_ressarcimento['data_ordem'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
-
-# # Garantindo que valores inteiros fiquem sem ".0"
-# colunas_inteiras = ['ordem_ressarcimento','id_ordem_pagamento_consorcio','id_pagamento','qtd_debito','qtd_integracao','qtd_rateio_credito','qtd_rateio_debito','qtd_venda_a_bordo','qtd_gratuidade'] 
-
-# for coluna in colunas_inteiras:
-#     ordem_ressarcimento[coluna] = ordem_ressarcimento[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
-
-# # Salvar no CSV sem converter inteiros para float
-# ordem_ressarcimento.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Ressarcimento.csv", 
-#               index=False, sep=";", encoding="utf-8-sig", decimal=".")
-
-
-# # Configurações principais
-# project_id = os.getenv('BQ_PROJECT')
-# dataset_id = os.getenv('BQ_DATASET')
-# table_id = os.getenv('BQ_TABLE_RESUMO')
-# source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Ressarcimento.csv"
-
-# # Define a tabela de destino no formato completo
-# table_ref = f"{project_id}.{dataset_id}.{table_id}"
-
-# # Configurações do job de carregamento
-# schema = [
-#     bigquery.SchemaField("data_ordem", "DATE"),
-#     bigquery.SchemaField("consorcio", "STRING"),
-#     bigquery.SchemaField("ordem_ressarcimento", "STRING"),
-#     bigquery.SchemaField("id_ordem_pagamento_consorcio", "STRING"),
-#     bigquery.SchemaField("id_pagamento", "STRING"),
-#     bigquery.SchemaField("status_ordem", "STRING"),
-#     bigquery.SchemaField("operadora", "STRING"),
-#     bigquery.SchemaField("servico", "STRING"),
-#     bigquery.SchemaField("linha", "STRING"),
-#     bigquery.SchemaField("valor_bruto", "FLOAT64"),
-#     bigquery.SchemaField("valor_taxa", "FLOAT64"),
-#     bigquery.SchemaField("valor_liquido", "FLOAT64"),
-#     bigquery.SchemaField("valor_debito", "FLOAT64"),
-#     bigquery.SchemaField("qtd_debito", "INTEGER"),
-#     bigquery.SchemaField("valor_integracao", "FLOAT64"),
-#     bigquery.SchemaField("qtd_integracao", "INTEGER"),
-#     bigquery.SchemaField("valor_rateio_credito", "FLOAT64"),
-#     bigquery.SchemaField("qtd_rateio_credito", "INTEGER"),
-#     bigquery.SchemaField("valor_rateio_debito", "FLOAT64"),
-#     bigquery.SchemaField("qtd_rateio_debito", "INTEGER"),
-#     bigquery.SchemaField("valor_venda_a_bordo", "FLOAT64"),
-#     bigquery.SchemaField("qtd_venda_a_bordo", "INTEGER"),
-#     bigquery.SchemaField("valor_gratuidade", "FLOAT64"),
-#     bigquery.SchemaField("qtd_gratuidade", "INTEGER")  
-# ]
-
-# job_config = bigquery.LoadJobConfig(
-#     source_format=bigquery.SourceFormat.CSV,
-#     skip_leading_rows=1,
-#     autodetect=False,      # Desabilitar autodetecção de tipos
-#     field_delimiter=';',   # Garantir que o delimitador seja uma vírgula
-#     schema=schema  # Definir o esquema manualmente
-# )
-
-# # Carrega o arquivo local para o BigQuery
-# with open(source_file, "rb") as file:
-#     job = client.load_table_from_file(file, table_ref, job_config=job_config)
-
-# # Aguarda o job ser concluído
-# client.close()
-
-
-
-# #Ordem Rateio
-# termo = 'Ordem Rateio'
+# Itera pelos arquivos na pasta
+for arquivo in os.listdir(diretorio_destino):
+    if arquivo.endswith('.xlsx') and termo in arquivo and str(data_ordem) in arquivo: 
+        caminho_completo = os.path.join(diretorio_destino, arquivo)
+        df = pd.read_excel(
+            caminho_completo,
+            dtype={
+                "Linha": str,
+                "id_ordem_rateio": str,
+            }
+        )
         
-# # Lista para armazenar os DataFrames
-# lista_dataframes = []
+        if 'Internorte' in arquivo:
+            df['Consorcio'] = 'Internorte'
+        elif 'Santa Cruz' in arquivo:
+            df['Consorcio'] = 'Santa Cruz'
+        elif 'Intersul' in arquivo:
+            df['Consorcio'] = 'Intersul'
+        elif 'Transcarioca' in arquivo:
+            df['Consorcio'] = 'Transcarioca'
 
-# # Itera pelos arquivos na pasta
-# for arquivo in os.listdir(diretorio_destino):
-#     if arquivo.endswith('.xlsx') and termo in arquivo and str(data_ordem) in arquivo: 
-#         caminho_completo = os.path.join(diretorio_destino, arquivo)
-#         df = pd.read_excel(
-#             caminho_completo,
-#             dtype={
-#                 "Linha": str,
-#                 "id_ordem_rateio": str,
-#             }
-#         )
-        
-#         if 'Internorte' in arquivo:
-#             df['Consorcio'] = 'Internorte'
-#         elif 'Santa Cruz' in arquivo:
-#             df['Consorcio'] = 'Santa Cruz'
-#         elif 'Intersul' in arquivo:
-#             df['Consorcio'] = 'Intersul'
-#         elif 'Transcarioca' in arquivo:
-#             df['Consorcio'] = 'Transcarioca'
+        valor_ultima_linha = df.iloc[-1, 0]
 
-#         valor_ultima_linha = df.iloc[-1, 0]
-
-#         match_consorcio = re.search(r'id_ordem_pagamento_consorcio é (\d+)', valor_ultima_linha)
-#         df['id_ordem_pagamento_consorcio'] = match_consorcio.group(1) if match_consorcio else None
+        match_consorcio = re.search(r'id_ordem_pagamento_consorcio é (\d+)', valor_ultima_linha)
+        df['id_ordem_pagamento_consorcio'] = match_consorcio.group(1) if match_consorcio else None
 
 
-#         df = df.iloc[:-3]
-#         lista_dataframes.append(df)
+        df = df.iloc[:-3]
+        lista_dataframes.append(df)
 
-# # Concatena todos os DataFrames em um único
-# ordem_rateio = pd.concat(lista_dataframes, ignore_index=True)
+# Concatena todos os DataFrames em um único
+ordem_rateio = pd.concat(lista_dataframes, ignore_index=True)
 
-# # Organiza a ordem das colunas do DatFrame
-# ordem_rateio = ordem_rateio[['Data Ordem Rateio','Consorcio','id_ordem_pagamento_consorcio','id_ordem_rateio','Operadora','Linha',
-#                              'Qtd débito total','Valor débito total','Qtd crédito total','Valor crédito total']]
+# Organiza a ordem das colunas do DatFrame
+ordem_rateio = ordem_rateio[['Data Ordem Rateio','Consorcio','id_ordem_pagamento_consorcio','id_ordem_rateio','Operadora','Linha',
+                             'Qtd débito total','Valor débito total','Qtd crédito total','Valor crédito total']]
 
-# # Renomea colunas
-# ordem_rateio.columns = ['data_ordem','consorcio','id_ordem_pagamento_consorcio','id_ordem_rateio','operadora','linha',
-#                         'qtd_debito_total','valor_debito_total','qtd_credito_total','valor_credito_total']
-
-
-# # Padronização
-# ordem_rateio['data_ordem'] = pd.to_datetime(ordem_rateio['data_ordem'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
-
-# # Garantindo que valores inteiros fiquem sem ".0"
-# colunas_inteiras = ['id_ordem_pagamento_consorcio','id_ordem_rateio','qtd_debito_total','qtd_credito_total'] 
-
-# for coluna in colunas_inteiras:
-#     ordem_rateio[coluna] = ordem_rateio[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
-
-# # Salvar no CSV sem converter inteiros para float
-# ordem_rateio.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Rateio.csv", 
-#               index=False, sep=";", encoding="utf-8-sig", decimal=".")
+# Renomea colunas
+ordem_rateio.columns = ['data_ordem','consorcio','id_ordem_pagamento_consorcio','id_ordem_rateio','operadora','linha',
+                        'qtd_debito_total','valor_debito_total','qtd_credito_total','valor_credito_total']
 
 
-# # Configurações principais
-# project_id = os.getenv('BQ_PROJECT')
-# dataset_id = os.getenv('BQ_DATASET')
-# table_id = os.getenv('BQ_TABLE_RATEIO')
-# source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Rateio.csv"
+# Padronização
+ordem_rateio['data_ordem'] = pd.to_datetime(ordem_rateio['data_ordem'], format='%d-%m-%Y').dt.strftime('%Y-%m-%d')
 
-# # Define a tabela de destino no formato completo
-# table_ref = f"{project_id}.{dataset_id}.{table_id}"
+# Garantindo que valores inteiros fiquem sem ".0"
+colunas_inteiras = ['id_ordem_pagamento_consorcio','id_ordem_rateio','qtd_debito_total','qtd_credito_total'] 
 
-# # Configurações do job de carregamento
-# schema = [
-#     bigquery.SchemaField("data_ordem", "DATE"),
-#     bigquery.SchemaField("consorcio", "STRING"),
-#     bigquery.SchemaField("id_ordem_pagamento_consorcio", "STRING"),
-#     bigquery.SchemaField("id_ordem_rateio", "STRING"),
-#     bigquery.SchemaField("operadora", "STRING"),
-#     bigquery.SchemaField("linha", "STRING"),
-#     bigquery.SchemaField("qtd_debito_total", "INTEGER"),
-#     bigquery.SchemaField("valor_debito_total", "FLOAT64"),
-#     bigquery.SchemaField("qtd_credito_total", "INTEGER"),
-#     bigquery.SchemaField("valor_credito_total", "FLOAT64")
-# ]
+for coluna in colunas_inteiras:
+    ordem_rateio[coluna] = ordem_rateio[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
 
-# job_config = bigquery.LoadJobConfig(
-#     source_format=bigquery.SourceFormat.CSV,
-#     skip_leading_rows=1,
-#     autodetect=False,      # Desabilitar autodetecção de tipos
-#     field_delimiter=';',   # Garantir que o delimitador seja uma vírgula
-#     schema=schema  # Definir o esquema manualmente
-# )
+# Salvar no CSV sem converter inteiros para float
+ordem_rateio.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Rateio.csv", 
+              index=False, sep=";", encoding="utf-8-sig", decimal=".")
 
-# # Carrega o arquivo local para o BigQuery
-# with open(source_file, "rb") as file:
-#     job = client.load_table_from_file(file, table_ref, job_config=job_config)
 
-# client.close()
+# Configurações principais
+project_id = os.getenv('BQ_PROJECT')
+dataset_id = os.getenv('BQ_DATASET')
+table_id = os.getenv('BQ_TABLE_RATEIO')
+source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento_Linha/{data_ordem} Ordem Rateio.csv"
 
-# print("SCRIPT FINALIZADO COM SUCESSO")
+# Define a tabela de destino no formato completo
+table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+# Configurações do job de carregamento
+schema = [
+    bigquery.SchemaField("data_ordem", "DATE"),
+    bigquery.SchemaField("consorcio", "STRING"),
+    bigquery.SchemaField("id_ordem_pagamento_consorcio", "STRING"),
+    bigquery.SchemaField("id_ordem_rateio", "STRING"),
+    bigquery.SchemaField("operadora", "STRING"),
+    bigquery.SchemaField("linha", "STRING"),
+    bigquery.SchemaField("qtd_debito_total", "INTEGER"),
+    bigquery.SchemaField("valor_debito_total", "FLOAT64"),
+    bigquery.SchemaField("qtd_credito_total", "INTEGER"),
+    bigquery.SchemaField("valor_credito_total", "FLOAT64")
+]
+
+job_config = bigquery.LoadJobConfig(
+    source_format=bigquery.SourceFormat.CSV,
+    skip_leading_rows=1,
+    autodetect=False,      # Desabilitar autodetecção de tipos
+    field_delimiter=';',   # Garantir que o delimitador seja uma vírgula
+    schema=schema  # Definir o esquema manualmente
+)
+
+# Carrega o arquivo local para o BigQuery
+with open(source_file, "rb") as file:
+    job = client.load_table_from_file(file, table_ref, job_config=job_config)
+
+client.close()
+
+print("SCRIPT FINALIZADO COM SUCESSO")
