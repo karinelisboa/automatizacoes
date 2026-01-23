@@ -11,6 +11,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 import time
 from datetime import datetime
 from selenium.webdriver.common.action_chains import ActionChains
@@ -61,8 +62,6 @@ USUARIO = env("USUARIO")
 print("ENV carregado com sucesso")
 print("DOWNLOADS_PATH =", DOWNLOADS_PATH)
 
-
-
 # Caminho dos arquivos brutos baixados
 pasta = os.getenv("DOWNLOADS_PATH")
 caminho_pasta = Path(pasta)
@@ -84,9 +83,23 @@ key_path = BQ_KEY_PATH
 # Configura o cliente do BigQuery
 client = bigquery.Client.from_service_account_json(key_path)
 
+# =====================================================
+# FUNÇÕES AUXILIARES
+# =====================================================
+def entrar_no_iframe(driver):
+    """Entra no iframe do Power BI de forma segura"""
+    driver.switch_to.default_content()
+    iframe = WebDriverWait(driver, 120).until(
+        EC.presence_of_element_located((
+            By.XPATH,
+            "//iframe[contains(@src, 'reportEmbed')]"
+        ))
+    )
+    driver.switch_to.frame(iframe)
 
-
+# =====================================================
 # CONFIGURACAO SELENIUM
+# =====================================================
 chrome_options = Options()
 chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # Remove flag de automação
 chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])  # Evita detecção
@@ -95,23 +108,31 @@ chrome_options.add_argument("--disable-gpu")  # Evita problemas gráficos
 chrome_options.add_argument("--start-maximized")  # Abre o navegador maximizado
 chrome_options.add_argument("--no-sandbox")  # Evita problemas de permissão
 chrome_options.add_argument("--disable-dev-shm-usage")  # Melhora o desempenho em sistemas com pouca RAM
+chrome_options.add_argument("--disable-extensions")  # Desabilita extensões que podem interferir
+chrome_options.add_argument("--disable-infobars")  # Remove barras de informação
 
 # Evita bloqueio de download e verificação de vírus
 prefs = {
     "download.prompt_for_download": False,
     "download.directory_upgrade": True,
     "safebrowsing.enabled": True,
-    "safebrowsing.disable_download_protection": True
+    "safebrowsing.disable_download_protection": True,
+    # Desabilitar atalhos de teclado do navegador
+    "profile.default_content_setting_values.notifications": 2,
+    "profile.default_content_settings.popups": 0
 }
 chrome_options.add_experimental_option("prefs", prefs)
-
 
 # Criar o driver corretamente
 driver = webdriver.Chrome(service=service, options=chrome_options)
 
+# IMPORTANTE: Executar JavaScript para desabilitar zoom do Chrome
+driver.execute_cdp_cmd('Emulation.setPageScaleFactor', {'pageScaleFactor': 1.0})
+driver.execute_cdp_cmd('Emulation.setEmitTouchEventsForMouse', {'enabled': False})
 
-
+# =====================================================
 # ACESSO AO DASHBOARD
+# =====================================================
 # Acessa o link
 driver.get(url)
 
@@ -122,7 +143,6 @@ email_input = WebDriverWait(driver, 60).until(
 )
 
 email_input.send_keys(os.getenv("POWERBI_EMAIL"))
-#email_input.send_keys(Keys.RETURN)
 time.sleep(5)
 
 # Preenche senha
@@ -130,217 +150,251 @@ senha_input = driver.find_element(By.ID, 'Password')
 senha_input.send_keys(os.getenv("POWERBI_PASSWORD"))
 senha_input.send_keys(Keys.RETURN)
 
-#driver.switch_to.default_content()
-
 # Esperar até o iframe com o src correto estar disponível
-iframe = WebDriverWait(driver, 60).until(
+iframe = WebDriverWait(driver, 120).until(
     EC.presence_of_element_located((By.XPATH, "//iframe[contains(@src, 'https://app.powerbi.com/reportEmbed?reportId=a6abefa3-5bc8')]"))
 )
 
 # Mudar para o iframe usando o src
 driver.switch_to.frame(iframe)
-time.sleep(20)
-
-
-
-# FILTRO DE PERIODO
-# Localiza e clica no elemento de filtro
-filtro = WebDriverWait(driver, 60).until(
-    #EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para seguir link']"))
-    EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para Seguir']"))
-)
-filtro.click()
-time.sleep(5)
-
-# Limpa todas as seleções do filtro
-filtro = WebDriverWait(driver, 60).until(
-    #EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Limpar todas as segmentações . Clique aqui para seguir link']"))
-    EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Limpar todas as segmentações . Clique aqui para Seguir']"))
-)
-filtro.click()
-time.sleep(5)
-
-# Identifica os campos de data
-campo_data_inicio = WebDriverWait(driver, 60).until(
-    EC.presence_of_element_located((By.XPATH, "//*[contains(@aria-label, 'Data de início')]"))
-)
-campo_data_fim = WebDriverWait(driver, 60).until(
-    EC.presence_of_element_located((By.XPATH, "//*[contains(@aria-label, 'Data de término')]"))
-)
-
-# Limpa os campos e insere a data do dia de hoje
-campo_data_fim.clear()
-campo_data_fim.send_keys(DATA_ATUAL)
 time.sleep(10)
 
-campo_data_inicio.clear()
-campo_data_inicio.send_keys(DATA_ATUAL)
+# =====================================================
+# FILTRO DE PERIODO
+# =====================================================
+# Garante que está no iframe correto
+entrar_no_iframe(driver)
 
 
-# Fecha o filtro clicando no ícone
-wait = WebDriverWait(driver, 60)
-indicador = wait.until(
-    #EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para seguir link']"))
-    EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para Seguir']"))
+# Localiza e clica no elemento de filtro com tratamento de erro
+max_tentativas = 3
+for tentativa in range(max_tentativas):
+    try:
+        print(f"Tentativa {tentativa + 1}/{max_tentativas} de abrir o filtro")
+        filtro = WebDriverWait(driver, 120).until(
+            EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para Seguir']"))
+        )
+        driver.execute_script("arguments[0].click();", filtro)
+        filtro.click()
+        print("✓ Filtro aberto com sucesso")
+        break  # Se funcionou, sai do loop
+    except StaleElementReferenceException:
+        if tentativa < max_tentativas - 1:
+            print(f"Elemento stale, tentando novamente... ({tentativa + 1}/{max_tentativas})")
+            time.sleep(2)
+            entrar_no_iframe(driver)  # Re-entra no iframe
+        else:
+            raise  # Se esgotou tentativas, levanta o erro
+time.sleep(5)
+
+
+# Identifica os campos de data com XPath mais específico
+print("Localizando campo de data de início...")
+campo_data_inicio = WebDriverWait(driver, 60).until(
+    EC.presence_of_element_located((By.XPATH, 
+        "//input[@type='text' and contains(@class, 'date-slicer-datepicker') and contains(@aria-label, 'Data de início')]"
+    ))
 )
-indicador.click()
+print("✓ Campo de data de início localizado")
+
+print("Localizando campo de data de término...")
+campo_data_fim = WebDriverWait(driver, 60).until(
+    EC.presence_of_element_located((By.XPATH, 
+        "//input[@type='text' and contains(@class, 'date-slicer-datepicker') and contains(@aria-label, 'Data de término')]"
+    ))
+)
+print("✓ Campo de data de término localizado")
+
+# Preenche INÍCIO usando JavaScript (não abre calendário)
+print(f"Preenchendo data de início com: {DATA_ATUAL}")
+driver.execute_script("arguments[0].value = '';", campo_data_inicio)
+time.sleep(0.3)
+driver.execute_script(f"arguments[0].value = '{DATA_ATUAL}';", campo_data_inicio)
+driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", campo_data_inicio)
+driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", campo_data_inicio)
+time.sleep(1)
+print("✓ Data de início preenchida!")
+
+# Preenche FIM usando JavaScript
+print(f"Preenchendo data de término com: {DATA_ATUAL}")
+driver.execute_script("arguments[0].value = '';", campo_data_fim)
+time.sleep(0.3)
+driver.execute_script(f"arguments[0].value = '{DATA_ATUAL}';", campo_data_fim)
+driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", campo_data_fim)
+driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", campo_data_fim)
+time.sleep(2)
+print("✓ Data de término preenchida!")
+
+# Verifica se preencheu corretamente
+valor_inicio = campo_data_inicio.get_attribute('value')
+valor_fim = campo_data_fim.get_attribute('value')
+print(f"Valores preenchidos - Início: {valor_inicio}, Fim: {valor_fim}")
 
 
 
 # DOWNLOAD
 ######################################### RESUMO
 # Localiza o título da tabela
-elemento_para_revelar = WebDriverWait(driver, 60).until(
-    EC.presence_of_element_located((By.XPATH, "(//div[@aria-label='Pagamento Operadora '])"))
-)
+# elemento_para_revelar = WebDriverWait(driver, 60).until(
+#     EC.presence_of_element_located((By.XPATH, "(//div[@aria-label='Pagamento Operadora '])"))
+# )
                             
 # Move o mouse até o elemento para aparecer o botão "Mais opções"
-actions = ActionChains(driver)
-actions.move_to_element(elemento_para_revelar).perform()
+# actions = ActionChains(driver)
+# actions.move_to_element(elemento_para_revelar).perform()
+
+# linha = WebDriverWait(driver, 60).until(
+#     EC.presence_of_element_located((By.XPATH, r"(//div[@role='gridcell' and @column-index='3' and @aria-colindex='5'])[1]"))
+#     )
+
+# actions = ActionChains(driver)
+# actions.move_to_element(linha).perform()
+
+
 
         
-# Localiza e clica no botão "Mais opções"
-botao_opcoes = WebDriverWait(driver, 60).until(
-    EC.element_to_be_clickable((By.XPATH, "//*[@class='vcMenuBtn' and @aria-label='Mais opções']"))
-    )
-botao_opcoes.click()
+# # Localiza e clica no botão "Mais opções"
+# botao_opcoes = WebDriverWait(driver, 60).until(
+#     EC.element_to_be_clickable((By.XPATH, "//*[@class='vcMenuBtn' and @aria-label='Mais opções']"))
+#     )
+# botao_opcoes.click()
 
                
-# Localiza e clica no botão "Exportar dados"
-exportar_dados = WebDriverWait(driver, 60).until(
-    EC.element_to_be_clickable((By.XPATH, "//span[text()='Exportar dados']"))
-    )
-exportar_dados.click()
+# # Localiza e clica no botão "Exportar dados"
+# exportar_dados = WebDriverWait(driver, 60).until(
+#     EC.element_to_be_clickable((By.XPATH, "//span[text()='Exportar dados']"))
+#     )
+# exportar_dados.click()
 
-exportar_botao = WebDriverWait(driver, 60).until(
-    EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Exportar']"))
-    )
-exportar_botao.click()
+# exportar_botao = WebDriverWait(driver, 60).until(
+#     EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Exportar']"))
+#     )
+# exportar_botao.click()
        
 
-# Garante que a pasta de destino exista
-os.makedirs(diretorio_destino, exist_ok=True)
+# # Garante que a pasta de destino exista
+# os.makedirs(diretorio_destino, exist_ok=True)
 
-# Espera o download finalizar
-time.sleep(10)
+# # Espera o download finalizar
+# time.sleep(10)
 
-# Lista todos os arquivos .xlsx da pasta de downloads
-arquivos = [
-    os.path.join(pasta, arquivo)
-    for arquivo in os.listdir(pasta)
-    if arquivo.endswith('.xlsx')
-    ]
+# # Lista todos os arquivos .xlsx da pasta de downloads
+# arquivos = [
+#     os.path.join(pasta, arquivo)
+#     for arquivo in os.listdir(pasta)
+#     if arquivo.endswith('.xlsx')
+#     ]
 
 
-# Encontra o arquivo .xlsx mais recente (baseado na data de criação)
-if arquivos:
-    arquivo_mais_recente = max(arquivos, key=os.path.getctime)
+# # Encontra o arquivo .xlsx mais recente (baseado na data de criação)
+# if arquivos:
+#     arquivo_mais_recente = max(arquivos, key=os.path.getctime)
     
-    # Remove barras '/' do texto da linha (nome do arquivo)
-    nome_arquivo_novo = f"{DATA_ORDEM} - Resumo.xlsx"
+#     # Remove barras '/' do texto da linha (nome do arquivo)
+#     nome_arquivo_novo = f"{DATA_ORDEM} - Resumo.xlsx"
     
-    # Define o caminho do novo arquivo na pasta de destino
-    caminho_novo = os.path.join(diretorio_destino, nome_arquivo_novo)
+#     # Define o caminho do novo arquivo na pasta de destino
+#     caminho_novo = os.path.join(diretorio_destino, nome_arquivo_novo)
 
-    # Move o arquivo para a nova pasta
-    shutil.move(arquivo_mais_recente, caminho_novo)
+#     # Move o arquivo para a nova pasta
+#     shutil.move(arquivo_mais_recente, caminho_novo)
 
-time.sleep(10)
+# time.sleep(10)
 
 
-#SUBINDO NA TABELA DO BIGQUERY
-#DATA_ORDEM = '19-02-2025'
-termo = 'Resumo'
+# #SUBINDO NA TABELA DO BIGQUERY
+# #DATA_ORDEM = '19-02-2025'
+# termo = 'Resumo'
 
         
-# Lista para armazenar os DataFrames
-lista_dataframes = []
+# # Lista para armazenar os DataFrames
+# lista_dataframes = []
 
-# Itera pelos arquivos na pasta
-for arquivo in os.listdir(diretorio_destino):
-    if arquivo.endswith('.xlsx') and termo in arquivo and str(DATA_ORDEM) in arquivo: 
-        caminho_completo = os.path.join(diretorio_destino, arquivo)
-        df = pd.read_excel(caminho_completo)
+# # Itera pelos arquivos na pasta
+# for arquivo in os.listdir(diretorio_destino):
+#     if arquivo.endswith('.xlsx') and termo in arquivo and str(DATA_ORDEM) in arquivo: 
+#         caminho_completo = os.path.join(diretorio_destino, arquivo)
+#         df = pd.read_excel(caminho_completo)
         
 
-        df = df.iloc[:-3]                                                                           #exclui as últimas 3 linhas do df
-        lista_dataframes.append(df)  # Adicionar o DataFrame à lista
+#         df = df.iloc[:-3]                                                                           #exclui as últimas 3 linhas do df
+#         lista_dataframes.append(df)  # Adicionar o DataFrame à lista
 
-# Concatena todos os DataFrames em um único
-resumo = pd.concat(lista_dataframes, ignore_index=True)
-
-
-# Remove coluna duplicada de bloqueio judicial
-#resumo = resumo.drop(columns=resumo.columns[[8]])
-
-# Renomea colunas
-resumo.columns = ['data','status_ordem','consorcio','operadora','ordem_pagamento','valor_bruto','valor_taxa','valor_bloqueio_judicial','valor_liquido','valor_debito','qtd_debito','valor_integracao','qtd_integracao','valor_rateio_credito','qtd_rateio_credito','valor_rateio_debito','qtd_rateio_debito','valor_venda_a_bordo','qtd_venda_a_bordo','valor_gratuidade','qtd_gratuidade','id']
-
-# Padronização
-resumo['data'] = pd.to_datetime(resumo['data'], format='%Y-%m-%d').dt.strftime('%Y-%m-%d')
-
-# Garantindo que valores inteiros fiquem sem ".0"
-colunas_inteiras = ['ordem_pagamento', 'id', 'qtd_debito', 'qtd_integracao','qtd_rateio_credito','qtd_rateio_debito','qtd_venda_a_bordo','qtd_gratuidade'] 
-
-for coluna in colunas_inteiras:
-    resumo[coluna] = resumo[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
-
-# Salvar no CSV sem converter inteiros para float
-resumo.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv", 
-              index=False, sep=";", encoding="utf-8-sig", decimal=".")
+# # Concatena todos os DataFrames em um único
+# resumo = pd.concat(lista_dataframes, ignore_index=True)
 
 
-# Configurações principais
-project_id = "ro-areatecnica"
-dataset_id = "ressarcimento_jae"
-table_id = "resumo"
-source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv"
+# # Remove coluna duplicada de bloqueio judicial
+# #resumo = resumo.drop(columns=resumo.columns[[8]])
 
-# Define a tabela de destino no formato completo
-table_ref = f"{project_id}.{dataset_id}.{table_id}"
+# # Renomea colunas
+# resumo.columns = ['data','status_ordem','consorcio','operadora','ordem_pagamento','valor_bruto','valor_taxa','valor_bloqueio_judicial','valor_liquido','valor_debito','qtd_debito','valor_integracao','qtd_integracao','valor_rateio_credito','qtd_rateio_credito','valor_rateio_debito','qtd_rateio_debito','valor_venda_a_bordo','qtd_venda_a_bordo','valor_gratuidade','qtd_gratuidade','id']
 
-# Configurações do job de carregamento
-schema = [
-    bigquery.SchemaField("DATA_ORDEM", "DATE"),
-    bigquery.SchemaField("status_ordem", "STRING"),
-    bigquery.SchemaField("consorcio", "STRING"),
-    bigquery.SchemaField("operadora", "STRING"),
-    bigquery.SchemaField("ordem_pagamento", "STRING"),
-    bigquery.SchemaField("valor_bruto", "FLOAT64"),
-    bigquery.SchemaField("valor_taxa", "FLOAT64"),
-    bigquery.SchemaField("valor_bloqueio_judicial", "FLOAT64"),
-    bigquery.SchemaField("valor_liquido", "FLOAT64"),
-    bigquery.SchemaField("valor_debito", "FLOAT64"),
-    bigquery.SchemaField("qtd_debito", "INTEGER"),
-    bigquery.SchemaField("valor_integracao", "FLOAT64"),
-    bigquery.SchemaField("qtd_integracao", "INTEGER"),
-    bigquery.SchemaField("valor_rateio_credito", "FLOAT64"),
-    bigquery.SchemaField("qtd_rateio_credito", "INTEGER"),
-    bigquery.SchemaField("valor_rateio_debito", "FLOAT64"),
-    bigquery.SchemaField("qtd_rateio_debito", "INTEGER"),
-    bigquery.SchemaField("valor_venda_a_bordo", "FLOAT64"),
-    bigquery.SchemaField("qtd_venda_a_bordo", "INTEGER"),
-    bigquery.SchemaField("valor_gratuidade", "FLOAT64"),
-    bigquery.SchemaField("qtd_gratuidade", "INTEGER"),
-    bigquery.SchemaField("id", "STRING")
-]
+# # Padronização
+# resumo['data'] = pd.to_datetime(resumo['data'], format='%Y-%m-%d').dt.strftime('%Y-%m-%d')
 
-job_config = bigquery.LoadJobConfig(
-    source_format=bigquery.SourceFormat.CSV,
-    skip_leading_rows=1,
-    autodetect=False,      # Desabilitar autodetecção de tipos
-    field_delimiter=';',   # Garantir que o delimitador seja uma vírgula
-    schema=schema  # Definir o esquema manualmente
-)
+# # Garantindo que valores inteiros fiquem sem ".0"
+# colunas_inteiras = ['ordem_pagamento', 'id', 'qtd_debito', 'qtd_integracao','qtd_rateio_credito','qtd_rateio_debito','qtd_venda_a_bordo','qtd_gratuidade'] 
 
-# Carrega o arquivo local para o BigQuery
-with open(source_file, "rb") as file:
-    job = client.load_table_from_file(file, table_ref, job_config=job_config)
+# for coluna in colunas_inteiras:
+#     resumo[coluna] = resumo[coluna].apply(lambda x: int(x) if pd.notna(x) and float(x).is_integer() else x)
 
-# Aguarda o job ser concluído
-job.result()
+# # Salvar no CSV sem converter inteiros para float
+# resumo.to_csv(f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv", 
+#               index=False, sep=";", encoding="utf-8-sig", decimal=".")
 
-print("Upload do Resumo para o BigQuery concluído com sucesso.")
+
+# # Configurações principais
+# project_id = "ro-areatecnica"
+# dataset_id = "ressarcimento_jae"
+# table_id = "resumo"
+# source_file = f"C:/Users/{USUARIO}/Desktop/Bases_Ressarcimento/{DATA_ORDEM} Resumo.csv"
+
+# # Define a tabela de destino no formato completo
+# table_ref = f"{project_id}.{dataset_id}.{table_id}"
+
+# # Configurações do job de carregamento
+# schema = [
+#     bigquery.SchemaField("DATA_ORDEM", "DATE"),
+#     bigquery.SchemaField("status_ordem", "STRING"),
+#     bigquery.SchemaField("consorcio", "STRING"),
+#     bigquery.SchemaField("operadora", "STRING"),
+#     bigquery.SchemaField("ordem_pagamento", "STRING"),
+#     bigquery.SchemaField("valor_bruto", "FLOAT64"),
+#     bigquery.SchemaField("valor_taxa", "FLOAT64"),
+#     bigquery.SchemaField("valor_bloqueio_judicial", "FLOAT64"),
+#     bigquery.SchemaField("valor_liquido", "FLOAT64"),
+#     bigquery.SchemaField("valor_debito", "FLOAT64"),
+#     bigquery.SchemaField("qtd_debito", "INTEGER"),
+#     bigquery.SchemaField("valor_integracao", "FLOAT64"),
+#     bigquery.SchemaField("qtd_integracao", "INTEGER"),
+#     bigquery.SchemaField("valor_rateio_credito", "FLOAT64"),
+#     bigquery.SchemaField("qtd_rateio_credito", "INTEGER"),
+#     bigquery.SchemaField("valor_rateio_debito", "FLOAT64"),
+#     bigquery.SchemaField("qtd_rateio_debito", "INTEGER"),
+#     bigquery.SchemaField("valor_venda_a_bordo", "FLOAT64"),
+#     bigquery.SchemaField("qtd_venda_a_bordo", "INTEGER"),
+#     bigquery.SchemaField("valor_gratuidade", "FLOAT64"),
+#     bigquery.SchemaField("qtd_gratuidade", "INTEGER"),
+#     bigquery.SchemaField("id", "STRING")
+# ]
+
+# job_config = bigquery.LoadJobConfig(
+#     source_format=bigquery.SourceFormat.CSV,
+#     skip_leading_rows=1,
+#     autodetect=False,      # Desabilitar autodetecção de tipos
+#     field_delimiter=';',   # Garantir que o delimitador seja uma vírgula
+#     schema=schema  # Definir o esquema manualmente
+# )
+
+# # Carrega o arquivo local para o BigQuery
+# with open(source_file, "rb") as file:
+#     job = client.load_table_from_file(file, table_ref, job_config=job_config)
+
+# # Aguarda o job ser concluído
+# job.result()
+
+# print("Upload do Resumo para o BigQuery concluído com sucesso.")
 
 
 
@@ -426,16 +480,16 @@ def baixar_arquivos(tipo):
                 
                 # Clica no botão de drill-through
                 print(f"Procurando botão drill-through para {tipo}...")
+                if tipo == "Rateio":
+                    xpath_drill = r"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em Ordem Ressarcimento Drill Novo']"
+                else:  # Transação
+                    xpath_drill = r"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em Ordem Transação Drill Novo']"
+                
                 botao_drill = WebDriverWait(driver, 60).until(
-                    EC.element_to_be_clickable((By.XPATH, f"//*[@aria-label='Drill-through . Clique aqui para executar uma consulta drill-through em {tipo}']"))
+                    EC.element_to_be_clickable((By.XPATH, xpath_drill))
                 )
-                
-                try:
-                    botao_drill.click()
-                except Exception:
-                    print("Clique normal falhou, usando JavaScript...")
-                    driver.execute_script("arguments[0].click();", botao_drill)
-                
+                botao_drill.click()
+
                 print("Botão drill-through clicado")
                 time.sleep(10)
                 
@@ -754,7 +808,6 @@ def selecionar_consorcio(consorcio):
     wait = WebDriverWait(driver, 60)
     
     # Abre o filtro
-    #filtro = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para seguir link']")))
     filtro = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para Seguir']")))
     filtro.click()
     time.sleep(7)
@@ -769,15 +822,51 @@ def selecionar_consorcio(consorcio):
     consorcio_escolhido.click()
     time.sleep(7)
     
-    # Fecha o filtro clicando novamente no ícone
-    #indicador = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para seguir link']")))
-    indicador = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@aria-label='Indicador . Clique aqui para Seguir']")))
-    indicador.click()
+    # NOVA LÓGICA: Clicar no dropdown_chevron após seleção
+    print("\n=== CLICANDO NO DROPDOWN APÓS SELEÇÃO DO CONSÓRCIO ===")
+    dropdown_chevron = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//i[@class='dropdown-chevron powervisuals-glyph chevron-up']"))
+    )
+    dropdown_chevron.click()
+    print("✓ Dropdown clicado com sucesso")
+    time.sleep(5)
+    
+    # NOVA LÓGICA: Ctrl+Shift+F6 para escolher o consórcio
+    print("=== PRESSIONANDO CTRL+SHIFT+F6 ===")
+    ActionChains(driver).key_down(Keys.CONTROL).key_down(Keys.SHIFT).send_keys(Keys.F6).key_up(Keys.SHIFT).key_up(Keys.CONTROL).perform()
+    time.sleep(2)
+    print("✓ Ctrl+Shift+F6 pressionado")
+    
+    # NOVA LÓGICA: Pressionar ESC
+    print("=== PRESSIONANDO ESC ===")
+    ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+    time.sleep(2)
+    print("✓ ESC pressionado")
+    
+    ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.F6).key_up(Keys.CONTROL).perform()
+
+    time.sleep(1)
+    print("✓ Ctrl+F6 pressionado (modo cegueira visual ativado)")
+
+    # Enter
+    ActionChains(driver).send_keys(Keys.RETURN).perform()
+    time.sleep(0.5)
+    print("✓ Enter pressionado")
+
+    # 5 setas para cima
+    for i in range(5):
+        ActionChains(driver).send_keys(Keys.ARROW_UP).perform()
+        time.sleep(0.3)
+    print("✓ 5 setas para cima pressionadas")
+
+    # Enter final
+    ActionChains(driver).send_keys(Keys.RETURN).perform()
+    time.sleep(1)
+    print("✓ Enter final pressionado - Filtro fechado!")
     
     # Chama função para baixar os arquivos
     baixar_arquivos("Rateio")
     baixar_arquivos("Transação")
-    
     
 # Chama função de seleção de consórcio
 selecionar_consorcio("Internorte")
